@@ -1,0 +1,34 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Only authenticated users can access
+    match /{document=**} {
+      allow read, write: if request.auth != null;
+    }
+    
+    // Orders: read-only for most users, write for admins
+    match /orders/{orderId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth.token.admin == true;
+    }
+    
+    // Shipments: full access for authenticated users
+    match /shipments/{shipmentId} {
+      allow read, write: if request.auth != null;
+    }
+    
+    // Rate quotes: append-only
+    match /rateQuotes/{quoteId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null;
+      allow update, delete: if false;  // Immutable audit trail
+    }
+    
+    // Audit logs: append-only
+    match /auditLogs/{logId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null;
+      allow update, delete: if false;  // Immutable audit trail
+    }
+  }
+}

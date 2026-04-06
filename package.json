@@ -1,0 +1,26 @@
+{
+  "name": "shipsmart",
+  "private": true,
+  "version": "0.1.0",
+  "description": "American Tile Depot Custom Shipping Platform",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev:backend",
+    "dev:backend": "npm run dev --workspace=@shipsmart/backend",
+    "dev:frontend": "npm run dev --workspace=@shipsmart/frontend",
+    "build": "npm run build --workspaces --if-present",
+    "build:backend": "npm run build --workspace=@shipsmart/backend",
+    "build:frontend": "npm run build --workspace=@shipsmart/frontend",
+    "lint": "npm run lint --workspaces --if-present",
+    "format": "prettier --write \"packages/**/*.{ts,tsx,json}\""
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2",
+    "prettier": "^3.2.5"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
