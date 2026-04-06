@@ -177,50 +177,65 @@ class MockCarrierGateway implements CarrierGateway {
     // Simulate API latency
     await new Promise((resolve) => setTimeout(resolve, 100 + Math.random() * 200));
 
-    const pkg = request.packages[0];
-    if (!pkg) return null;
+    if (request.packages.length === 0) return null;
 
-    const dimWeight = calculateDimensionalWeight(
-      pkg.length,
-      pkg.width,
-      pkg.height,
-      this.id,
-    );
-    const billableWeight = calculateBillableWeight(pkg.weight, dimWeight);
+    // Calculate total rate for all packages
+    let totalRate = 0;
+    let totalDimWeight = 0;
+    let totalBillableWeight = 0;
 
-    // Check if carrier can handle this package
-    if (exceedsWeightLimit(billableWeight, this.id)) {
-      if (this.id === CarrierId.LTL) {
-        // LTL can handle heavy packages
-        return this.generateLTLQuote(request, billableWeight);
+    for (const pkg of request.packages) {
+      const dimWeight = calculateDimensionalWeight(
+        pkg.length,
+        pkg.width,
+        pkg.height,
+        this.id,
+      );
+      const billableWeight = calculateBillableWeight(pkg.weight, dimWeight);
+
+      // Check if carrier can handle this package
+      if (exceedsWeightLimit(billableWeight, this.id)) {
+        if (this.id === CarrierId.LTL) {
+          // LTL can handle heavy packages - continue processing
+        } else {
+          return null;
+        }
       }
-      return null;
+
+      // Check size limits
+      if (exceedsSizeLimit(pkg.length, pkg.width, pkg.height, this.id)) {
+        if (this.id === CarrierId.LTL) {
+          // LTL can handle oversized packages - continue processing
+        } else {
+          return null;
+        }
+      }
+
+      totalDimWeight += dimWeight;
+      totalBillableWeight += billableWeight;
     }
 
-    // Check size limits
-    if (exceedsSizeLimit(pkg.length, pkg.width, pkg.height, this.id)) {
-      if (this.id === CarrierId.LTL) {
-        return this.generateLTLQuote(request, billableWeight);
-      }
-      return null;
-    }
-
-    // Generate mock rate based on weight and zone
+    // Generate mock rate based on total weight and zone
     const zone = this.calculateZone(request.fromAddress.zip, request.toAddress.zip);
     const baseRate = this.getBaseRate(zone);
-    const weightSurcharge = billableWeight * this.getWeightMultiplier();
-    const rate = baseRate + weightSurcharge;
+    const weightSurcharge = totalBillableWeight * this.getWeightMultiplier();
+    totalRate = baseRate + weightSurcharge;
 
     const estimatedDays = this.getEstimatedDays(zone);
+
+    // For LTL, use combined calculation
+    if (this.id === CarrierId.LTL) {
+      return this.generateLTLQuote(request, totalBillableWeight);
+    }
 
     return {
       carrier: this.id,
       serviceLevel: this.getDefaultServiceLevel(),
-      rate: Math.round(rate * 100) / 100,
+      rate: Math.round(totalRate * 100) / 100,
       currency: 'USD',
       estimatedDays,
-      dimensionalWeight: dimWeight,
-      billableWeight,
+      dimensionalWeight: totalDimWeight,
+      billableWeight: totalBillableWeight,
       zone,
       isCheapest: false,
       isFastest: false,
@@ -229,6 +244,7 @@ class MockCarrierGateway implements CarrierGateway {
       metadata: {
         baseRate: Math.round(baseRate * 100) / 100,
         weightSurcharge: Math.round(weightSurcharge * 100) / 100,
+        packageCount: request.packages.length,
       },
     };
   }

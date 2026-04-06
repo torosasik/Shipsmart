@@ -9,6 +9,8 @@ import {
   applyConsolidationHandler,
   getOpportunitiesHandler,
 } from '../controllers/consolidation';
+import { validate } from '../middleware/validate';
+import { consolidateOrdersValidation } from '../middleware/validation';
 
 const router = Router();
 
@@ -31,6 +33,6 @@ router.post('/opportunities', findOpportunitiesHandler);
  * Apply consolidation to selected orders.
  * Body: { orderIds: string[], boxes: PackageDetail[], notes?: string }
  */
-router.post('/apply', applyConsolidationHandler);
+router.post('/apply', validate(consolidateOrdersValidation), applyConsolidationHandler);
 
 export default router;

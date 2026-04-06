@@ -5,6 +5,9 @@
 
 import { Router } from 'express';
 import { shopRatesHandler } from '../controllers/rates';
+import { rateShopLimiter } from '../middleware/rateLimiter';
+import { validate } from '../middleware/validate';
+import { rateShopValidation } from '../middleware/validation';
 
 const router = Router();
 
@@ -14,6 +17,6 @@ const router = Router();
  * Request body: RateRequest
  * Response: RateComparisonResponse
  */
-router.post('/shop', shopRatesHandler);
+router.post('/shop', rateShopLimiter, validate(rateShopValidation), shopRatesHandler);
 
 export default router;

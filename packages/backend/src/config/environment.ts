@@ -69,6 +69,9 @@ export const env = {
 
   /** Whether we're running in production mode */
   isProd: (process.env.NODE_ENV || OPTIONAL_ENV_VARS.NODE_ENV) === 'production',
+
+  /** Shopify shared secret for webhook verification */
+  shopifySharedSecret: process.env.SHOPIFY_SHARED_SECRET || '',
 } as const;
 
 // Validate on import

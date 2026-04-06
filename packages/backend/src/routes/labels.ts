@@ -9,6 +9,9 @@ import {
   voidLabelHandler,
   reprintLabelHandler,
 } from '../controllers/labels';
+import { labelLimiter } from '../middleware/rateLimiter';
+import { validate } from '../middleware/validate';
+import { labelGenerationValidation, voidLabelValidation } from '../middleware/validation';
 
 const router = Router();
 
@@ -16,13 +19,13 @@ const router = Router();
  * POST /api/labels/generate
  * Generate a shipping label.
  */
-router.post('/generate', generateLabelHandler);
+router.post('/generate', labelLimiter, validate(labelGenerationValidation), generateLabelHandler);
 
 /**
  * POST /api/labels/void
  * Void a shipping label.
  */
-router.post('/void', voidLabelHandler);
+router.post('/void', validate(voidLabelValidation), voidLabelHandler);
 
 /**
  * GET /api/labels/:trackingNumber/reprint

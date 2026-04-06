@@ -10,6 +10,8 @@ import {
   getReturnHandler,
   updateReturnStatusHandler,
 } from '../controllers/returns';
+import { validate } from '../middleware/validate';
+import { createReturnValidation } from '../middleware/validation';
 
 const router = Router();
 
@@ -17,7 +19,7 @@ const router = Router();
  * POST /api/returns
  * Create a return shipment.
  */
-router.post('/', createReturnHandler);
+router.post('/', validate(createReturnValidation), createReturnHandler);
 
 /**
  * GET /api/returns
