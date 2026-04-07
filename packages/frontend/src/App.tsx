@@ -7,6 +7,8 @@ import { ShipmentsPage } from './pages/ShipmentsPage';
 import { ReturnsPage } from './pages/ReturnsPage';
 import { ConsolidationPage } from './pages/ConsolidationPage';
 import { CarrierSettingsPage } from './pages/CarrierSettingsPage';
+import { HealthCheckPage } from './pages/HealthCheckPage';
+import { SettingsPage } from './pages/SettingsPage';
 import { LoginPage } from './pages/LoginPage';
 
 export function App() {
@@ -30,6 +32,8 @@ export function App() {
         <Route path="returns" element={<ReturnsPage />} />
         <Route path="consolidation" element={<ConsolidationPage />} />
         <Route path="settings/carriers" element={<CarrierSettingsPage />} />
+        <Route path="health" element={<HealthCheckPage />} />
+        <Route path="settings" element={<SettingsPage />} />
       </Route>
     </Routes>
   );

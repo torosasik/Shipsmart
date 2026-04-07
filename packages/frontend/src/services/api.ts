@@ -102,6 +102,26 @@ export const consolidationApi = {
     api.post<ApiResponse<unknown>>('/consolidation/apply', data).then((r) => r.data),
 };
 
+export interface ServiceInfo {
+  status: 'healthy' | 'unhealthy' | 'unconfigured';
+  message: string;
+}
+
+export interface HealthData {
+  status: 'healthy' | 'degraded' | 'unhealthy';
+  timestamp: string;
+  services: {
+    api: ServiceInfo;
+    firebase: ServiceInfo;
+    carriers: Record<string, ServiceInfo>;
+  };
+  version: string;
+}
+
+export const healthApi = {
+  get: () => api.get<HealthData>('/health').then((r) => r.data),
+};
+
 export const carrierSettingsApi = {
   list: () =>
     api.get<ApiResponse<unknown>>('/settings/carriers').then((r) => r.data),
