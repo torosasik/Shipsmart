@@ -235,13 +235,14 @@ export class USPSGateway extends BaseCarrierGateway {
   }
 
   async voidLabel(_trackingNumber: string): Promise<boolean> {
-    try {
-      // Pirate Ship doesn't have a direct void endpoint, we'd need to track the label ID
-      // For now, return false as voiding requires the label ID from the original purchase
-      return false;
-    } catch {
-      return false;
-    }
+    // Pirate Ship doesn't expose a direct void endpoint via their public API.
+    // Voiding requires the label ID from the original purchase, which must be
+    // stored and passed separately. This is a known limitation.
+    // TODO: Implement void by storing labelId from createLabel response
+    throw new Error(
+      'USPS label voiding is not supported via Pirate Ship public API. ' +
+      'Voiding requires the label ID from the original purchase.',
+    );
   }
 
   async trackPackage(trackingNumber: string): Promise<TrackingStatus> {

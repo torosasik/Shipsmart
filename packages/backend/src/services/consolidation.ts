@@ -11,6 +11,7 @@ import {
   ShipmentContext,
   PackageDetail,
 } from '@shipsmart/shared';
+import { firestoreService } from './firestore';
 
 // ============================================================================
 // Types
@@ -238,7 +239,10 @@ function groupOrdersByAddress(orders: Order[]): { address: string; orders: Order
  * Normalize an address for comparison.
  */
 function normalizeAddress(address: Address): string {
-  return `${address.zip}-${address.street1.toLowerCase().replace(/\s+/g, '')}`;
+  // Exclude street2 (apartment/unit) from the grouping key because two orders
+  // at the same building can have different unit numbers but should still be
+  // considered for consolidation.
+  return `${address.country || ''}-${address.zip}-${address.state || ''}-${address.city || ''}-${address.street1.toLowerCase().replace(/\s+/g, '')}`;
 }
 
 /**
@@ -286,11 +290,24 @@ function findConsolidationWindows(
 export async function consolidateOrders(
   request: ConsolidateOrdersRequest,
 ): Promise<ConsolidateOrdersResponse> {
-  // TODO: Fetch orders from Firestore
-  // TODO: Validate all orders are pending
-  // TODO: Create consolidated shipment
-  // TODO: Update order statuses to 'consolidated'
-  // TODO: Create audit log entry
+  // Fetch orders from Firestore
+  const orders: Order[] = [];
+  for (const orderId of request.orderIds) {
+    const order = await firestoreService.getOrder(orderId);
+    if (order) {
+      orders.push(order);
+    }
+  }
+
+  if (orders.length === 0) {
+    throw new Error('No valid orders found for consolidation');
+  }
+
+  // Validate all orders are pending
+  const nonPendingOrders = orders.filter(o => o.status !== OrderStatus.Pending);
+  if (nonPendingOrders.length > 0) {
+    throw new Error(`Cannot consolidate orders with status: ${nonPendingOrders.map(o => o.status).join(', ')}`);
+  }
 
   const totalWeight = request.boxes.reduce((sum, b) => sum + b.weight, 0);
   const declaredValue = request.boxes.reduce(
@@ -298,7 +315,13 @@ export async function consolidateOrders(
     0,
   );
 
-  // Mock response
+  // Update order statuses to consolidated
+  for (const order of orders) {
+    await firestoreService.updateDocument('orders', order.id, {
+      status: 'consolidated',
+    } as Partial<Order>);
+  }
+
   return {
     consolidationId: generateConsolidationId(),
     orderIds: request.orderIds,
@@ -311,14 +334,7 @@ export async function consolidateOrders(
         zip: '90001',
         country: 'US',
       },
-      toAddress: {
-        name: 'Customer',
-        street1: '456 Customer Ave',
-        city: 'New York',
-        state: 'NY',
-        zip: '10001',
-        country: 'US',
-      },
+      toAddress: orders[0].shippingAddress,
       packages: request.boxes,
       totalWeight,
       declaredValue,

@@ -13,8 +13,8 @@ import { AppError } from './errorHandler';
  */
 export function validate(
   validations: ValidationChain[],
-): (req: Request, res: Response, next: NextFunction) => void {
-  return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+): (req: Request, _res: Response, next: NextFunction) => void {
+  return async (req: Request, _res: Response, next: NextFunction): Promise<void> => {
     // Run all validations
     await Promise.all(validations.map((validation) => validation.run(req)));
 

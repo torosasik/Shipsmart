@@ -11,13 +11,10 @@ import {
   PackageDetail,
   ShipmentContext,
 } from '@shipsmart/shared';
-import {
-  calculateDimensionalWeight,
-  calculateBillableWeight,
-  exceedsWeightLimit,
-  exceedsSizeLimit,
-  LTL_THRESHOLD_LBS,
-} from '@shipsmart/shared';
+import { LTL_THRESHOLD_LBS } from '@shipsmart/shared';
+import { CarrierGateway as RealCarrierGateway } from './carriers/gateway';
+import { getEnabledCarriers as getEnabledCarrierGateways } from './carriers';
+import { withRetry, carrierCircuitBreakers } from '../utils/retry';
 
 // ============================================================================
 // Types
@@ -55,38 +52,6 @@ export interface RateComparisonResponse {
   sessionId: string;
   /** Timestamp of the rate shop */
   timestamp: Date;
-}
-
-/** Carrier registry entry */
-interface CarrierEntry {
-  /** Carrier ID */
-  id: CarrierId;
-  /** Whether this carrier is enabled */
-  enabled: boolean;
-  /** Priority order for display */
-  priority: number;
-}
-
-// ============================================================================
-// Carrier Registry
-// ============================================================================
-
-/** Default carrier configuration */
-const DEFAULT_CARRIERS: CarrierEntry[] = [
-  { id: CarrierId.UPS, enabled: true, priority: 1 },
-  { id: CarrierId.FedEx, enabled: true, priority: 2 },
-  { id: CarrierId.USPS, enabled: true, priority: 3 },
-  { id: CarrierId.Shippo, enabled: false, priority: 4 },
-  { id: CarrierId.LTL, enabled: true, priority: 5 },
-];
-
-/**
- * Get enabled carriers for rate shopping.
- * In production, this would query Firestore for carrierConfigs.
- */
-function getEnabledCarriers(): CarrierEntry[] {
-  // TODO: Fetch from Firestore carrierConfigs collection
-  return DEFAULT_CARRIERS.filter((c) => c.enabled);
 }
 
 // ============================================================================
@@ -152,226 +117,16 @@ function storeCache(request: RateRequest, response: RateComparisonResponse): voi
 }
 
 // ============================================================================
-// Carrier Gateway Interface
+// Carrier Gateway Integration
 // ============================================================================
 
 /**
- * Placeholder for carrier gateway calls.
- * In production, each carrier adapter would implement this interface.
- */
-interface CarrierGateway {
-  /** Carrier ID */
-  readonly id: CarrierId;
-  /** Get rate quote for a shipment */
-  getRate(request: RateRequest): Promise<CarrierQuote | null>;
-}
-
-/**
- * Mock carrier gateway for development.
- * Replace with real carrier API calls in production.
- */
-class MockCarrierGateway implements CarrierGateway {
-  constructor(readonly id: CarrierId) {}
-
-  async getRate(request: RateRequest): Promise<CarrierQuote | null> {
-    // Simulate API latency
-    await new Promise((resolve) => setTimeout(resolve, 100 + Math.random() * 200));
-
-    if (request.packages.length === 0) return null;
-
-    // Calculate total rate for all packages
-    let totalRate = 0;
-    let totalDimWeight = 0;
-    let totalBillableWeight = 0;
-
-    for (const pkg of request.packages) {
-      const dimWeight = calculateDimensionalWeight(
-        pkg.length,
-        pkg.width,
-        pkg.height,
-        this.id,
-      );
-      const billableWeight = calculateBillableWeight(pkg.weight, dimWeight);
-
-      // Check if carrier can handle this package
-      if (exceedsWeightLimit(billableWeight, this.id)) {
-        if (this.id === CarrierId.LTL) {
-          // LTL can handle heavy packages - continue processing
-        } else {
-          return null;
-        }
-      }
-
-      // Check size limits
-      if (exceedsSizeLimit(pkg.length, pkg.width, pkg.height, this.id)) {
-        if (this.id === CarrierId.LTL) {
-          // LTL can handle oversized packages - continue processing
-        } else {
-          return null;
-        }
-      }
-
-      totalDimWeight += dimWeight;
-      totalBillableWeight += billableWeight;
-    }
-
-    // Generate mock rate based on total weight and zone
-    const zone = this.calculateZone(request.fromAddress.zip, request.toAddress.zip);
-    const baseRate = this.getBaseRate(zone);
-    const weightSurcharge = totalBillableWeight * this.getWeightMultiplier();
-    totalRate = baseRate + weightSurcharge;
-
-    const estimatedDays = this.getEstimatedDays(zone);
-
-    // For LTL, use combined calculation
-    if (this.id === CarrierId.LTL) {
-      return this.generateLTLQuote(request, totalBillableWeight);
-    }
-
-    return {
-      carrier: this.id,
-      serviceLevel: this.getDefaultServiceLevel(),
-      rate: Math.round(totalRate * 100) / 100,
-      currency: 'USD',
-      estimatedDays,
-      dimensionalWeight: totalDimWeight,
-      billableWeight: totalBillableWeight,
-      zone,
-      isCheapest: false,
-      isFastest: false,
-      isBestValue: false,
-      requiresLTL: false,
-      metadata: {
-        baseRate: Math.round(baseRate * 100) / 100,
-        weightSurcharge: Math.round(weightSurcharge * 100) / 100,
-        packageCount: request.packages.length,
-      },
-    };
-  }
-
-  private generateLTLQuote(
-    request: RateRequest,
-    billableWeight: number,
-  ): CarrierQuote {
-    const zone = this.calculateZone(request.fromAddress.zip, request.toAddress.zip);
-    const baseRate = 150 + zone * 10;
-    const weightSurcharge = billableWeight * 0.15;
-    const rate = baseRate + weightSurcharge;
-
-    return {
-      carrier: CarrierId.LTL,
-      serviceLevel: 'LTL_STANDARD',
-      rate: Math.round(rate * 100) / 100,
-      currency: 'USD',
-      estimatedDays: 5 + zone,
-      dimensionalWeight: billableWeight,
-      billableWeight,
-      zone,
-      isCheapest: false,
-      isFastest: false,
-      isBestValue: false,
-      requiresLTL: true,
-      metadata: {
-        freightClass: this.getFreightClass(billableWeight),
-      },
-    };
-  }
-
-  private calculateZone(fromZip: string, toZip: string): number {
-    // Simplified zone calculation based on ZIP code distance
-    const fromPrefix = parseInt(fromZip.substring(0, 3), 10);
-    const toPrefix = parseInt(toZip.substring(0, 3), 10);
-    const diff = Math.abs(fromPrefix - toPrefix);
-
-    if (diff < 100) return 2;
-    if (diff < 300) return 4;
-    if (diff < 600) return 6;
-    return 8;
-  }
-
-  private getBaseRate(zone: number): number {
-    switch (this.id) {
-      case CarrierId.UPS:
-        return 8.5 + zone * 0.75;
-      case CarrierId.FedEx:
-        return 8.75 + zone * 0.7;
-      case CarrierId.USPS:
-        return 7.5 + zone * 0.5;
-      case CarrierId.Shippo:
-        return 8 + zone * 0.65;
-      case CarrierId.LTL:
-        return 150 + zone * 10;
-      default:
-        return 10;
-    }
-  }
-
-  private getWeightMultiplier(): number {
-    switch (this.id) {
-      case CarrierId.UPS:
-        return 0.08;
-      case CarrierId.FedEx:
-        return 0.085;
-      case CarrierId.USPS:
-        return 0.06;
-      case CarrierId.Shippo:
-        return 0.07;
-      case CarrierId.LTL:
-        return 0.15;
-      default:
-        return 0.1;
-    }
-  }
-
-  private getEstimatedDays(zone: number): number {
-    switch (this.id) {
-      case CarrierId.UPS:
-        return Math.min(5, 1 + Math.ceil(zone / 2));
-      case CarrierId.FedEx:
-        return Math.min(5, 1 + Math.ceil(zone / 2));
-      case CarrierId.USPS:
-        return Math.min(7, 2 + Math.ceil(zone / 2));
-      case CarrierId.Shippo:
-        return Math.min(5, 1 + Math.ceil(zone / 2));
-      case CarrierId.LTL:
-        return 5 + zone;
-      default:
-        return 5;
-    }
-  }
-
-  private getDefaultServiceLevel(): string {
-    switch (this.id) {
-      case CarrierId.UPS:
-        return 'GROUND';
-      case CarrierId.FedEx:
-        return 'GROUND';
-      case CarrierId.USPS:
-        return 'PRIORITY';
-      case CarrierId.Shippo:
-        return 'GROUND';
-      case CarrierId.LTL:
-        return 'LTL_STANDARD';
-      default:
-        return 'STANDARD';
-    }
-  }
-
-  private getFreightClass(weight: number): string {
-    if (weight < 50) return 'CLASS_70';
-    if (weight < 100) return 'CLASS_77.5';
-    if (weight < 200) return 'CLASS_85';
-    if (weight < 500) return 'CLASS_100';
-    return 'CLASS_125';
-  }
-}
-
-/**
  * Get carrier gateway instances for enabled carriers.
+ * Uses the real carrier gateways from the carriers registry.
+ * Each gateway calls the actual carrier API (UPS, FedEx, USPS, Shippo, LTL).
  */
-function getCarrierGateways(): CarrierGateway[] {
-  const enabledCarriers = getEnabledCarriers();
-  return enabledCarriers.map((entry) => new MockCarrierGateway(entry.id));
+function getCarrierGateways(): RealCarrierGateway[] {
+  return getEnabledCarrierGateways();
 }
 
 // ============================================================================
@@ -394,10 +149,16 @@ export async function shopRates(request: RateRequest): Promise<RateComparisonRes
   const sessionId = generateSessionId();
   const gateways = getCarrierGateways();
 
-  // Query all carriers in parallel
+  // Query all carriers in parallel with retry and circuit breaker
   const ratePromises = gateways.map(async (gateway) => {
+    const circuitBreaker = carrierCircuitBreakers[gateway.id];
+    
     try {
-      return await gateway.getRate(request);
+      // Use circuit breaker and retry logic for external API calls
+      const rate = circuitBreaker
+        ? await circuitBreaker.execute(() => withRetry(() => gateway.getRate(request)))
+        : await withRetry(() => gateway.getRate(request));
+      return rate;
     } catch (error) {
       console.error(`[RateShop] Error fetching rate from ${gateway.id}:`, error);
       return null;
@@ -594,8 +355,14 @@ export async function calculateMultiBoxRates(
       };
 
       const ratePromises = gateways.map(async (gateway) => {
+        const circuitBreaker = carrierCircuitBreakers[gateway.id];
+        
         try {
-          return await gateway.getRate(multiPkgRequest);
+          // Use circuit breaker and retry logic for external API calls
+          const rate = circuitBreaker
+            ? await circuitBreaker.execute(() => withRetry(() => gateway.getRate(multiPkgRequest)))
+            : await withRetry(() => gateway.getRate(multiPkgRequest));
+          return rate;
         } catch {
           return null;
         }

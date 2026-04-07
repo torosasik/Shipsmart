@@ -52,11 +52,17 @@ export function verifyShopifyWebhook(
 
   const secret = env.shopifySharedSecret;
   if (!secret) {
-    console.error('[Webhook] SHOPIFY_SHARED_SECRET not configured');
-    res.status(500).json({
-      success: false,
-      error: 'Webhook verification not configured',
-    });
+    // Fail closed in production
+    if (env.isProd) {
+      console.error('[Webhook] SHOPIFY_SHARED_SECRET not configured in production');
+      res.status(500).json({
+        success: false,
+        error: 'Webhook verification not configured',
+      });
+      return;
+    }
+    console.warn('[Webhook] SHOPIFY_SHARED_SECRET not configured, allowing in dev mode');
+    next();
     return;
   }
 
@@ -106,7 +112,17 @@ export function verifyCarrierWebhook(
   const secret = process.env[secretEnvName];
 
   if (!secret) {
-    // Allow in development mode but log a warning
+    // Fail closed in production, allow in development mode
+    if (env.isProd) {
+      console.error(
+        `[Webhook] No webhook secret configured for carrier: ${carrier}. Set ${secretEnvName} in production.`,
+      );
+      res.status(500).json({
+        success: false,
+        error: 'Webhook verification not configured',
+      });
+      return;
+    }
     console.warn(
       `[Webhook] No webhook secret configured for carrier: ${carrier}. Set ${secretEnvName} in production.`,
     );

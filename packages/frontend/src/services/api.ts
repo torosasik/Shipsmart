@@ -1,5 +1,6 @@
 import axios from 'axios';
 import type { ApiResponse, PaginatedResponse } from '../types';
+import type { Order, Shipment, ReturnEvent } from '@shipsmart/shared';
 
 const api = axios.create({
   baseURL: '/api',
@@ -30,18 +31,39 @@ api.interceptors.response.use(
   },
 );
 
+// Dashboard API - get stats and metrics
+export const dashboardApi = {
+  getStats: () =>
+    api.get<ApiResponse<{
+      pendingOrders: number;
+      activeShipments: number;
+      deliveredShipments: number;
+      pendingReturns: number;
+      consolidationSavings: number;
+      consolidationOpportunities: number;
+    }>>('/dashboard/stats').then((r) => r.data),
+  getRecentActivity: (limit = 10) =>
+    api.get<ApiResponse<{
+      orders: Order[];
+      shipments: Shipment[];
+      returns: ReturnEvent[];
+    }>>('/dashboard/activity', { params: { limit } }).then((r) => r.data),
+};
+
 export const ratesApi = {
   shopRates: (data: unknown) =>
     api.post<ApiResponse<unknown>>('/rates/shop', data).then((r) => r.data),
 };
 
 export const ordersApi = {
-  list: (params?: { page?: number; limit?: number }) =>
+  list: (params?: { page?: number; limit?: number; status?: string }) =>
     api.get<PaginatedResponse<unknown>>('/orders', { params }).then((r) => r.data),
   get: (id: string) =>
     api.get<ApiResponse<unknown>>(`/orders/${id}`).then((r) => r.data),
   sync: () =>
     api.post<ApiResponse<unknown>>('/orders/sync').then((r) => r.data),
+  updateStatus: (id: string, status: string) =>
+    api.patch<ApiResponse<unknown>>(`/orders/${id}/status`, { status }).then((r) => r.data),
 };
 
 export const shipmentsApi = {
@@ -51,13 +73,19 @@ export const shipmentsApi = {
     api.get<ApiResponse<unknown>>(`/shipments/${id}`).then((r) => r.data),
   create: (data: unknown) =>
     api.post<ApiResponse<unknown>>('/shipments', data).then((r) => r.data),
+  updateStatus: (id: string, status: string) =>
+    api.patch<ApiResponse<unknown>>(`/shipments/${id}/status`, { status }).then((r) => r.data),
 };
 
 export const returnsApi = {
-  list: () =>
-    api.get<PaginatedResponse<unknown>>('/returns').then((r) => r.data),
+  list: (params?: { page?: number; limit?: number; orderId?: string }) =>
+    api.get<PaginatedResponse<unknown>>('/returns', { params }).then((r) => r.data),
+  get: (id: string) =>
+    api.get<ApiResponse<unknown>>(`/returns/${id}`).then((r) => r.data),
   create: (data: unknown) =>
     api.post<ApiResponse<unknown>>('/returns', data).then((r) => r.data),
+  updateStatus: (id: string, status: string, notes?: string) =>
+    api.patch<ApiResponse<unknown>>(`/returns/${id}/status`, { status, notes }).then((r) => r.data),
 };
 
 export const labelsApi = {
@@ -72,6 +100,17 @@ export const consolidationApi = {
     api.get<ApiResponse<unknown>>('/consolidation/opportunities').then((r) => r.data),
   apply: (data: unknown) =>
     api.post<ApiResponse<unknown>>('/consolidation/apply', data).then((r) => r.data),
+};
+
+export const carrierSettingsApi = {
+  list: () =>
+    api.get<ApiResponse<unknown>>('/settings/carriers').then((r) => r.data),
+  get: (carrierId: string) =>
+    api.get<ApiResponse<unknown>>(`/settings/carriers/${carrierId}`).then((r) => r.data),
+  update: (carrierId: string, data: { enabled: boolean; sandbox: boolean; credentials: Record<string, string> }) =>
+    api.put<ApiResponse<unknown>>(`/settings/carriers/${carrierId}`, data).then((r) => r.data),
+  test: (carrierId: string) =>
+    api.post<ApiResponse<unknown>>(`/settings/carriers/${carrierId}/test`).then((r) => r.data),
 };
 
 export default api;

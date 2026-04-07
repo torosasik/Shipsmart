@@ -291,9 +291,17 @@ export class FedExGateway extends BaseCarrierGateway {
       const transactionShipments = (output?.transactionShipments as Array<Record<string, unknown>> | undefined) || [];
       const shipment = transactionShipments[0];
 
+      if (!shipment) {
+        throw new Error('No shipment data returned from FedEx');
+      }
+
+      // Extract label URL from the correct field in FedEx response
+      const packageDocuments = (shipment?.packageDocuments as Array<Record<string, string>> | undefined) || [];
+      const labelUrl = packageDocuments[0]?.url || '';
+
       return {
         trackingNumber: (shipment?.masterTrackingNumber as string) || '',
-        labelUrl: (shipment?.pieceResponses as Array<Record<string, string>> | undefined)?.[0]?.trackingNumber || '',
+        labelUrl,
         labelFormat: 'PDF',
         charge: 0,
         metadata: { shipmentId: shipment?.shipmentId },

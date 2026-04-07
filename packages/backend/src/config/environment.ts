@@ -20,6 +20,7 @@ const OPTIONAL_ENV_VARS = {
   ALLOWED_ORIGINS: 'http://localhost:5173',
   FIREBASE_CLIENT_EMAIL: '',
   FIREBASE_PRIVATE_KEY: '',
+  API_KEYS: '',
 } as const;
 
 /**
@@ -72,6 +73,9 @@ export const env = {
 
   /** Shopify shared secret for webhook verification */
   shopifySharedSecret: process.env.SHOPIFY_SHARED_SECRET || '',
+
+  /** API keys for service-to-service auth (format: service:key,service:key) */
+  apiKeys: process.env.API_KEYS || OPTIONAL_ENV_VARS.API_KEYS,
 } as const;
 
 // Validate on import

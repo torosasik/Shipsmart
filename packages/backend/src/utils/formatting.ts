@@ -20,6 +20,10 @@ const TRACKING_URLS: Record<CarrierId, (trackingNumber: string) => string> = {
     `https://goshippo.com/track/${encodeURIComponent(trackingNumber)}`,
   [CarrierId.LTL]: (trackingNumber) =>
     `https://tools.usps.com/go/TrackConfirmAction?tLabels=${encodeURIComponent(trackingNumber)}`,
+  [CarrierId.ShipStation]: (trackingNumber) =>
+    `https://app.shipstation.com/orders/all-orders-search-result?quickSearch=${encodeURIComponent(trackingNumber)}`,
+  [CarrierId.Veeqo]: (trackingNumber) =>
+    `https://app.veeqo.com/shipments?q=${encodeURIComponent(trackingNumber)}`,
 };
 
 /**

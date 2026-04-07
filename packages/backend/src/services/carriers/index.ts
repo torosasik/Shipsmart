@@ -10,17 +10,21 @@ import { FedExGateway } from './fedex';
 import { USPSGateway } from './usps';
 import { ShippoGateway } from './shippo';
 import { LTLGateway } from './ltl';
+import { ShipStationGateway } from './shipstation';
+import { VeeqoGateway } from './veeqo';
 
 /**
  * Registry of all carrier gateways.
  * Use this to access carrier-specific functionality.
  */
-export const carrierRegistry: Record<CarrierId, CarrierGateway> = {
+export const carrierRegistry: Record<string, CarrierGateway> = {
   [CarrierId.UPS]: new UPSGateway(),
   [CarrierId.FedEx]: new FedExGateway(),
   [CarrierId.USPS]: new USPSGateway(),
   [CarrierId.Shippo]: new ShippoGateway(),
   [CarrierId.LTL]: new LTLGateway(),
+  shipstation: new ShipStationGateway(),
+  veeqo: new VeeqoGateway(),
 };
 
 /**
@@ -62,3 +66,5 @@ export { FedExGateway } from './fedex';
 export { USPSGateway } from './usps';
 export { ShippoGateway } from './shippo';
 export { LTLGateway } from './ltl';
+export { ShipStationGateway } from './shipstation';
+export { VeeqoGateway } from './veeqo';

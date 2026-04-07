@@ -8,6 +8,7 @@ import {
   AuditAction,
   Timestamp,
 } from '@shipsmart/shared';
+import { firestoreService } from './firestore';
 
 // ============================================================================
 // Types
@@ -86,8 +87,8 @@ export async function createAuditLog(
     timestamp: now,
   };
 
-  // TODO: Save to Firestore auditLogs collection
-  // await db.collection('auditLogs').doc(auditLog.id).set(auditLog);
+  // Save to Firestore
+  await firestoreService.saveAuditLog(auditLog);
 
   return auditLog;
 }

@@ -12,6 +12,7 @@ import {
 } from '../controllers/returns';
 import { validate } from '../middleware/validate';
 import { createReturnValidation } from '../middleware/validation';
+import { returnLimiter } from '../middleware/rateLimiter';
 
 const router = Router();
 
@@ -19,7 +20,7 @@ const router = Router();
  * POST /api/returns
  * Create a return shipment.
  */
-router.post('/', validate(createReturnValidation), createReturnHandler);
+router.post('/', returnLimiter, validate(createReturnValidation), createReturnHandler);
 
 /**
  * GET /api/returns

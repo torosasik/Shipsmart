@@ -6,8 +6,11 @@
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
+import swaggerUi from 'swagger-ui-express';
 import { env } from './config/environment';
 import { errorHandler } from './middleware/errorHandler';
+import { generalLimiter } from './middleware/rateLimiter';
+import { swaggerDefinition } from './config/swagger';
 import apiRoutes from './routes';
 
 // Initialize Express app
@@ -28,9 +31,23 @@ app.use(
   }),
 );
 
-// Body parsing
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+// Rate limiting (applied globally)
+app.use(generalLimiter);
+
+// Body parsing (capture raw body for webhook signature verification)
+app.use(express.json({
+  limit: '10mb',
+  verify: (req: express.Request, _res: express.Response, buf: Buffer) => {
+    req.rawBody = buf;
+  },
+}));
+app.use(express.urlencoded({
+  extended: true,
+  limit: '10mb',
+  verify: (req: express.Request, _res: express.Response, buf: Buffer) => {
+    req.rawBody = buf;
+  },
+}));
 
 // Request logging
 app.use((req, _res, next) => {
@@ -42,6 +59,16 @@ app.use((req, _res, next) => {
 // Routes
 // ============================================================================
 
+// Swagger API documentation
+app.use(
+  '/api-docs',
+  swaggerUi.serve,
+  swaggerUi.setup(swaggerDefinition, {
+    explorer: true,
+    customCss: '.swagger-ui .topbar { display: none }',
+  }),
+);
+
 // API routes
 app.use('/api', apiRoutes);
 
@@ -51,6 +78,7 @@ app.get('/', (_req, res) => {
     name: 'ShipSmart API',
     version: '0.1.0',
     status: 'running',
+    docs: '/api-docs',
   });
 });
 
@@ -79,6 +107,7 @@ app.listen(PORT, () => {
   console.log(`[Server] ShipSmart API running on port ${PORT}`);
   console.log(`[Server] Environment: ${env.nodeEnv}`);
   console.log(`[Server] Health check: http://localhost:${PORT}/api/health`);
+  console.log(`[Server] API docs: http://localhost:${PORT}/api-docs`);
 });
 
 export default app;

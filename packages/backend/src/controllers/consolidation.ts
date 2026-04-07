@@ -36,7 +36,7 @@ export async function findOpportunitiesHandler(
       return;
     }
 
-    const maxDays = maxDaysApart ? parseInt(maxDaysApart as string, 10) : 3;
+    const maxDays = typeof maxDaysApart === 'number' ? maxDaysApart : 3;
 
     const analysis = analyzeConsolidationOpportunities(orders as Order[], maxDays);
 

@@ -85,13 +85,18 @@ export class UPSGateway extends BaseCarrierGateway {
     }
 
     try {
+      // UPS OAuth requires Basic Auth with clientId:clientSecret
+      const credentials = Buffer.from(
+        `${this.config.clientId}:${this.config.clientSecret}`,
+      ).toString('base64');
+
       this.logRequest('getAccessToken', { clientId: this.config.clientId });
 
       const response = await fetch(`${this.config.baseUrl}/security/v1/oauth/token`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
-          'x-merchant-id': this.config.clientId,
+          'Authorization': `Basic ${credentials}`,
         },
         body: new URLSearchParams({
           grant_type: 'client_credentials',

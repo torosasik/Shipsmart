@@ -73,6 +73,10 @@ export enum CarrierId {
   Shippo = 'shippo',
   /** Less-Than-Truckload freight */
   LTL = 'ltl',
+  /** ShipStation multi-carrier platform */
+  ShipStation = 'shipstation',
+  /** Veeqo multi-carrier platform */
+  Veeqo = 'veeqo',
 }
 
 /** Audit log action types */

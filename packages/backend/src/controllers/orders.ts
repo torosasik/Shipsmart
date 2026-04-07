@@ -10,6 +10,8 @@ import {
   Timestamp,
 } from '@shipsmart/shared';
 import { ApiResponse, PaginatedResponse } from '../models';
+import { firestoreService } from '../services/firestore';
+import { shopifyService } from '../services/shopify';
 
 /**
  * GET /api/orders
@@ -23,20 +25,36 @@ export async function listOrdersHandler(
   try {
     const page = parseInt(req.query.page as string, 10) || 1;
     const limit = parseInt(req.query.limit as string, 10) || 20;
+    const status = req.query.status as string | undefined;
 
-    // TODO: Call actual service to fetch orders from Firestore
-    // const result = await listOrders({ page, limit, status });
+    // Validate status if provided
+    if (status && !Object.values(OrderStatus).includes(status as OrderStatus)) {
+      res.status(400).json({
+        success: false,
+        error: `Invalid status. Must be one of: ${Object.values(OrderStatus).join(', ')}`,
+      });
+      return;
+    }
 
-    // Mock response
-    const mockOrders: Order[] = [];
+    const result = await firestoreService.listOrders({
+      limit,
+      status: status as OrderStatus | undefined,
+    });
+
+    // Calculate pagination metadata
+    // Note: Firestore cursor-based pagination doesn't provide exact total counts
+    // hasMore is true if we received a full page (there may be more results)
+    const hasMore = result.items.length === limit;
+    const total = hasMore ? page * limit + 1 : (page - 1) * limit + result.items.length;
+
     res.json({
       success: true,
       data: {
-        items: mockOrders,
-        total: 0,
+        items: result.items,
+        total,
         page,
         limit,
-        hasMore: false,
+        hasMore,
       },
     });
   } catch (error) {
@@ -64,17 +82,18 @@ export async function getOrderHandler(
       return;
     }
 
-    // TODO: Call actual service
-    // const order = await getOrder(id);
-    // if (!order) {
-    //   res.status(404).json({ success: false, error: 'Order not found' });
-    //   return;
-    // }
+    const order = await firestoreService.getOrder(id);
+    if (!order) {
+      res.status(404).json({
+        success: false,
+        error: 'Order not found',
+      });
+      return;
+    }
 
-    // Mock response
     res.json({
       success: true,
-      data: null as unknown as Order,
+      data: order,
     });
   } catch (error) {
     next(error);
@@ -91,20 +110,63 @@ export async function syncFromShopifyHandler(
   next: NextFunction,
 ): Promise<void> {
   try {
-    // TODO: Call Shopify API to fetch orders
-    // - Use Admin API to get orders since last sync
-    // - Transform to Order format
-    // - Upsert into Firestore
+    // Determine the last sync date
+    // Default to 24 hours ago if no previous sync timestamp is available
+    const lastSyncDate = new Date();
+    lastSyncDate.setHours(lastSyncDate.getHours() - 24);
 
-    // Mock response
-    const mockSynced = 0;
-    const mockErrors: string[] = [];
+    // Fetch orders from Shopify
+    const shopifyOrders = await shopifyService.getOrdersSince(lastSyncDate, 50);
+
+    const errors: string[] = [];
+    let synced = 0;
+
+    // Transform and upsert each order into Firestore
+    for (const shopifyOrder of shopifyOrders) {
+      try {
+        const orderData = shopifyService.transformOrder(shopifyOrder);
+        const orderId = orderData.id as string;
+
+        // Check if order already exists
+        const existingOrder = await firestoreService.getOrder(orderId);
+
+        if (existingOrder) {
+          // Update existing order
+          await firestoreService.updateDocument('orders', orderId, {
+            ...orderData,
+            updatedAt: new Date(),
+          } as Partial<Order>);
+        } else {
+          // Create new order
+          const order: Order = {
+            id: orderId,
+            shopifyOrderId: orderData.shopifyOrderId as string,
+            customerName: orderData.customerName as string,
+            customerEmail: orderData.customerEmail as string,
+            shippingAddress: orderData.shippingAddress as Order['shippingAddress'],
+            lineItems: orderData.lineItems as Order['lineItems'],
+            totalWeight: orderData.totalWeight as number,
+            boxCount: orderData.boxCount as number,
+            status: (orderData.status as OrderStatus) || OrderStatus.Pending,
+            createdAt: orderData.createdAt as unknown as Timestamp,
+            updatedAt: orderData.updatedAt as unknown as Timestamp,
+            syncedAt: orderData.syncedAt as unknown as Timestamp,
+          };
+          await firestoreService.saveOrder(order);
+        }
+
+        synced++;
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+        errors.push(`Failed to sync order ${shopifyOrder.id}: ${errorMessage}`);
+      }
+    }
 
     res.json({
       success: true,
       data: {
-        synced: mockSynced,
-        errors: mockErrors,
+        synced,
+        errors,
       },
     });
   } catch (error) {
@@ -141,29 +203,35 @@ export async function updateOrderStatusHandler(
       return;
     }
 
-    // TODO: Call actual service
-    // const order = await updateOrderStatus(id, status);
+    // Check if order exists
+    const existingOrder = await firestoreService.getOrder(id);
+    if (!existingOrder) {
+      res.status(404).json({
+        success: false,
+        error: 'Order not found',
+      });
+      return;
+    }
 
-    // Mock response
-    const now = new Date() as unknown as Timestamp;
-    const mockOrder: Order = {
-      id,
-      shopifyOrderId: '',
-      customerName: '',
-      customerEmail: '',
+    // Update the order status
+    await firestoreService.updateDocument('orders', id, {
       status,
-      lineItems: [],
-      shippingAddress: {} as any,
-      totalWeight: 0,
-      boxCount: 0,
-      createdAt: now,
-      updatedAt: now,
-      syncedAt: now,
-    };
+      updatedAt: new Date(),
+    } as Partial<Order>);
+
+    // Fetch the updated order
+    const updatedOrder = await firestoreService.getOrder(id);
+    if (!updatedOrder) {
+      res.status(500).json({
+        success: false,
+        error: 'Failed to retrieve updated order',
+      });
+      return;
+    }
 
     res.json({
       success: true,
-      data: mockOrder,
+      data: updatedOrder,
     });
   } catch (error) {
     next(error);

@@ -12,6 +12,7 @@ import {
 } from '@shipsmart/shared';
 import { carrierRegistry } from './carriers';
 import { logTrackingSynced } from './audit';
+import { firestoreService } from './firestore';
 
 // ============================================================================
 // Types
@@ -102,11 +103,11 @@ export async function updateTrackingStatus(
     deliveredAt = new Date() as unknown as Timestamp;
   }
 
-  // TODO: Update shipment in Firestore
-  // await db.collection('shipments').doc(shipment.id).update({
-  //   status: newStatus,
-  //   deliveredAt,
-  // });
+  // Update shipment in Firestore
+  await firestoreService.updateDocument('shipments', shipment.id, {
+    status: mapTrackingStatusToShipmentStatus(trackingStatus.status),
+    deliveredAt,
+  } as Partial<Shipment>);
 
   // Log audit event
   await logTrackingSynced(userId, shipment.id, {
@@ -146,11 +147,11 @@ export async function syncTrackingToShopify(
     // Mock implementation
     const now = new Date();
 
-    // TODO: Update shipment in Firestore
-    // await db.collection('shipments').doc(shipment.id).update({
-    //   shopifySynced: true,
-    //   shopifySyncedAt: admin.firestore.FieldValue.serverTimestamp(),
-    // });
+    // Update shipment in Firestore
+    await firestoreService.updateDocument('shipments', shipment.id, {
+      shopifySynced: true,
+      shopifySyncedAt: now,
+    } as Partial<Shipment>);
 
     // Log audit event
     await logTrackingSynced(userId, shipment.id, {

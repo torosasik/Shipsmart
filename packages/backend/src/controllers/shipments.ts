@@ -6,9 +6,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { Shipment, ShipmentStatus, ShipmentType, CarrierId, Timestamp } from '@shipsmart/shared';
 import { ApiResponse, PaginatedResponse } from '../models';
-
-// TODO: Replace with actual Firestore service
-// import { listShipments, getShipment, createShipment, updateShipmentStatus } from '../services/shipment';
+import { firestoreService } from '../services/firestore';
 
 /**
  * GET /api/shipments
@@ -22,20 +20,27 @@ export async function listShipmentsHandler(
   try {
     const page = parseInt(req.query.page as string, 10) || 1;
     const limit = parseInt(req.query.limit as string, 10) || 20;
+    const status = req.query.status as string | undefined;
+    const orderId = req.query.orderId as string | undefined;
 
-    // TODO: Call actual service
-    // const result = await listShipments({ page, limit, status, orderId });
+    const result = await firestoreService.listShipments({
+      limit,
+      status,
+      orderId,
+    });
 
-    // Mock response
-    const mockShipments: Shipment[] = [];
+    // Calculate pagination metadata
+    const hasMore = result.items.length === limit;
+    const total = hasMore ? page * limit + 1 : (page - 1) * limit + result.items.length;
+
     res.json({
       success: true,
       data: {
-        items: mockShipments,
-        total: 0,
+        items: result.items,
+        total,
         page,
         limit,
-        hasMore: false,
+        hasMore,
       },
     });
   } catch (error) {
@@ -63,17 +68,18 @@ export async function getShipmentHandler(
       return;
     }
 
-    // TODO: Call actual service
-    // const shipment = await getShipment(id);
-    // if (!shipment) {
-    //   res.status(404).json({ success: false, error: 'Shipment not found' });
-    //   return;
-    // }
+    const shipment = await firestoreService.getShipment(id);
+    if (!shipment) {
+      res.status(404).json({
+        success: false,
+        error: 'Shipment not found',
+      });
+      return;
+    }
 
-    // Mock response
     res.json({
       success: true,
-      data: null as unknown as Shipment,
+      data: shipment,
     });
   } catch (error) {
     next(error);
@@ -129,13 +135,10 @@ export async function createShipmentHandler(
       return;
     }
 
-    // TODO: Call actual service
-    // const shipment = await createShipment({ ... });
-
-    // Mock response
-    const now = new Date() as unknown as Timestamp;
-    const mockShipment: Shipment = {
-      id: `shp-${Date.now()}`,
+    // Build shipment object
+    const now = new Date();
+    const shipment: Shipment = {
+      id: `shp-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`,
       orderId,
       type: type || ShipmentType.Outbound,
       carrier: carrier || CarrierId.UPS,
@@ -148,16 +151,19 @@ export async function createShipmentHandler(
       totalCost: totalCost || 0,
       currency: currency || 'USD',
       status: ShipmentStatus.Created,
-      createdAt: now,
+      createdAt: now as unknown as Timestamp,
       shippedAt: null,
       deliveredAt: null,
       shopifySynced: false,
       shopifySyncedAt: null,
     };
 
+    // Save to Firestore
+    await firestoreService.saveShipment(shipment);
+
     res.status(201).json({
       success: true,
-      data: mockShipment,
+      data: shipment,
     });
   } catch (error) {
     next(error);
@@ -193,35 +199,48 @@ export async function updateShipmentStatusHandler(
       return;
     }
 
-    // TODO: Call actual service
-    // const shipment = await updateShipmentStatus(id, status);
+    // Get existing shipment
+    const existingShipment = await firestoreService.getShipment(id);
+    if (!existingShipment) {
+      res.status(404).json({
+        success: false,
+        error: 'Shipment not found',
+      });
+      return;
+    }
 
-    // Mock response
-    const now = new Date() as unknown as Timestamp;
-    const mockShipment: Shipment = {
-      id,
-      orderId: '',
-      type: ShipmentType.Outbound,
-      carrier: CarrierId.UPS,
-      serviceLevel: '',
-      trackingNumbers: [],
-      labels: [],
-      fromAddress: {} as any,
-      toAddress: {} as any,
-      boxes: [],
-      totalCost: 0,
-      currency: 'USD',
+    // Calculate timestamps based on status
+    const now = new Date();
+    let shippedAt = existingShipment.shippedAt;
+    let deliveredAt = existingShipment.deliveredAt;
+
+    if (status === ShipmentStatus.InTransit && !shippedAt) {
+      shippedAt = now as unknown as Timestamp;
+    }
+    if (status === ShipmentStatus.Delivered && !deliveredAt) {
+      deliveredAt = now as unknown as Timestamp;
+    }
+
+    // Update in Firestore
+    await firestoreService.updateDocument('shipments', id, {
       status,
-      createdAt: now,
-      shippedAt: status === ShipmentStatus.InTransit ? now : null,
-      deliveredAt: status === ShipmentStatus.Delivered ? now : null,
-      shopifySynced: false,
-      shopifySyncedAt: null,
-    };
+      shippedAt,
+      deliveredAt,
+    } as Partial<Shipment>);
+
+    // Fetch updated shipment
+    const updatedShipment = await firestoreService.getShipment(id);
+    if (!updatedShipment) {
+      res.status(500).json({
+        success: false,
+        error: 'Failed to retrieve updated shipment',
+      });
+      return;
+    }
 
     res.json({
       success: true,
-      data: mockShipment,
+      data: updatedShipment,
     });
   } catch (error) {
     next(error);

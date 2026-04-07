@@ -12,6 +12,7 @@ import {
 } from '../controllers/shipments';
 import { validate } from '../middleware/validate';
 import { createShipmentValidation, idParamValidation } from '../middleware/validation';
+import { shipmentLimiter } from '../middleware/rateLimiter';
 
 const router = Router();
 
@@ -32,7 +33,7 @@ router.get('/:id', validate(idParamValidation), getShipmentHandler);
  * POST /api/shipments
  * Create a new shipment.
  */
-router.post('/', validate(createShipmentValidation), createShipmentHandler);
+router.post('/', shipmentLimiter, validate(createShipmentValidation), createShipmentHandler);
 
 /**
  * PATCH /api/shipments/:id/status

@@ -13,6 +13,7 @@ import {
   Address,
   Timestamp,
 } from '@shipsmart/shared';
+import { firestoreService } from './firestore';
 
 // ============================================================================
 // Types
@@ -122,8 +123,8 @@ export async function createReturn(
     notes: request.notes || '',
   };
 
-  // TODO: Save to Firestore returnEvents collection
-  // await db.collection('returnEvents').doc(returnEvent.id).set(returnEvent);
+  // Save to Firestore
+  await firestoreService.saveReturnEvent(returnEvent);
 
   // TODO: Update original order status to 'returned'
   // await db.collection('orders').doc(request.originalOrderId).update({
@@ -326,15 +327,9 @@ export async function updateReturnStatus(
  * @returns Return event or null if not found
  */
 export async function getReturnEvent(
-  _returnEventId: string,
+  returnEventId: string,
 ): Promise<ReturnEvent | null> {
-  // TODO: Fetch from Firestore
-  // const doc = await db.collection('returnEvents').doc(returnEventId).get();
-  // if (!doc.exists) return null;
-  // return doc.data() as ReturnEvent;
-
-  // Mock for development
-  return null;
+  return firestoreService.getReturnEvent(returnEventId);
 }
 
 /**
@@ -344,18 +339,9 @@ export async function getReturnEvent(
  * @returns Array of return events
  */
 export async function listReturnEventsForOrder(
-  _orderId: string,
+  orderId: string,
 ): Promise<ReturnEvent[]> {
-  // TODO: Query Firestore
-  // const snapshot = await db
-  //   .collection('returnEvents')
-  //   .where('originalOrderId', '==', orderId)
-  //   .orderBy('createdAt', 'desc')
-  //   .get();
-  // return snapshot.docs.map((doc) => doc.data() as ReturnEvent);
-
-  // Mock for development
-  return [];
+  return firestoreService.listReturnEventsForOrder(orderId);
 }
 
 /**

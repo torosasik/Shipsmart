@@ -16,6 +16,8 @@ export const CARRIER_NAMES: Record<CarrierId, string> = {
   [CarrierId.USPS]: 'USPS',
   [CarrierId.Shippo]: 'Shippo',
   [CarrierId.LTL]: 'LTL Freight',
+  [CarrierId.ShipStation]: 'ShipStation',
+  [CarrierId.Veeqo]: 'Veeqo',
 };
 
 // ============================================================================
@@ -35,6 +37,8 @@ export const DIMENSIONAL_WEIGHT_DIVISORS: Record<CarrierId, number> = {
   [CarrierId.USPS]: 166,
   [CarrierId.Shippo]: 139,
   [CarrierId.LTL]: 139,
+  [CarrierId.ShipStation]: 139,
+  [CarrierId.Veeqo]: 139,
 };
 
 // ============================================================================
@@ -51,6 +55,8 @@ export const CARRIER_WEIGHT_LIMITS: Record<CarrierId, number> = {
   [CarrierId.USPS]: 70,
   [CarrierId.Shippo]: 150,
   [CarrierId.LTL]: 10000,
+  [CarrierId.ShipStation]: 150,
+  [CarrierId.Veeqo]: 150,
 };
 
 /**
@@ -63,6 +69,8 @@ export const CARRIER_MAX_LENGTH_PLUS_GIRTH: Record<CarrierId, number> = {
   [CarrierId.USPS]: 130,
   [CarrierId.Shippo]: 165,
   [CarrierId.LTL]: 9999,
+  [CarrierId.ShipStation]: 165,
+  [CarrierId.Veeqo]: 165,
 };
 
 // ============================================================================
@@ -76,6 +84,8 @@ export const DEFAULT_CARRIER_PRIORITY: Record<CarrierId, number> = {
   [CarrierId.USPS]: 3,
   [CarrierId.Shippo]: 4,
   [CarrierId.LTL]: 5,
+  [CarrierId.ShipStation]: 6,
+  [CarrierId.Veeqo]: 7,
 };
 
 // ============================================================================

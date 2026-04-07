@@ -154,13 +154,13 @@ export class ShippoGateway extends BaseCarrierGateway {
   }
 
   async voidLabel(_trackingNumber: string): Promise<boolean> {
-    try {
-      // Shippo requires the transaction object_id to void, not tracking number
-      // This is a simplified implementation
-      return false;
-    } catch {
-      return false;
-    }
+    // Shippo requires the transaction object_id to void, not the tracking number.
+    // The transaction ID must be stored from the original createLabel response.
+    // TODO: Implement void by storing transactionId from createLabel response
+    throw new Error(
+      'Shippo label voiding requires the transaction object_id, not the tracking number. ' +
+      'Store the transaction ID from the original createLabel response to enable voiding.',
+    );
   }
 
   async trackPackage(trackingNumber: string): Promise<TrackingStatus> {

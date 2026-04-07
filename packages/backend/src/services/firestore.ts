@@ -267,7 +267,32 @@ export class FirestoreService {
 
       if (snapshot.empty) return null;
       const doc = snapshot.docs[0];
-      return { id: doc.id, ...doc.data() } as Shipment;
+      const data = doc.data();
+      if (!data) return null;
+
+      // Map Firestore data to Shipment type with explicit field mapping
+      const shipment: Shipment = {
+        id: doc.id,
+        orderId: data.orderId as string,
+        type: data.type as Shipment['type'],
+        carrier: data.carrier as Shipment['carrier'],
+        serviceLevel: data.serviceLevel as string,
+        trackingNumbers: data.trackingNumbers as string[],
+        labels: data.labels as Shipment['labels'],
+        fromAddress: data.fromAddress as Shipment['fromAddress'],
+        toAddress: data.toAddress as Shipment['toAddress'],
+        boxes: data.boxes as Shipment['boxes'],
+        totalCost: data.totalCost as number,
+        currency: data.currency as string,
+        status: data.status as Shipment['status'],
+        createdAt: data.createdAt as Shipment['createdAt'],
+        shippedAt: data.shippedAt as Shipment['shippedAt'],
+        deliveredAt: data.deliveredAt as Shipment['deliveredAt'],
+        shopifySynced: data.shopifySynced as boolean,
+        shopifySyncedAt: data.shopifySyncedAt as Shipment['shopifySyncedAt'],
+      };
+
+      return shipment;
     } catch (error) {
       console.error(`[Firestore] Error querying shipment by tracking number:`, error);
       throw error;

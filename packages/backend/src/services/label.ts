@@ -17,6 +17,7 @@ import {
 } from '@shipsmart/shared';
 import { carrierRegistry } from './carriers';
 import { logLabelGenerated } from './audit';
+import { firestoreService } from './firestore';
 
 // ============================================================================
 // Types
@@ -169,8 +170,8 @@ export async function generateLabel(
     shopifySyncedAt: null,
   };
 
-  // TODO: Save shipment to Firestore
-  // await db.collection('shipments').doc(shipment.id).set(shipment);
+  // Save shipment to Firestore
+  await firestoreService.saveShipment(shipment);
 
   // Log audit event
   await logLabelGenerated(request.userId, shipment.id, {
@@ -198,12 +199,13 @@ export async function generateMultipleLabels(
 ): Promise<GenerateLabelResponse[]> {
   const results: GenerateLabelResponse[] = [];
 
-  for (const pkg of request.packages) {
+  for (let i = 0; i < request.packages.length; i++) {
+    const pkg = request.packages[i];
     const singlePackageRequest: GenerateLabelRequest = {
       ...request,
       packages: [pkg],
       reference: request.reference
-        ? `${request.reference}-${request.packages.indexOf(pkg) + 1}`
+        ? `${request.reference}-${i + 1}`
         : undefined,
     };
 
@@ -250,22 +252,16 @@ export async function voidLabel(request: VoidLabelRequest): Promise<boolean> {
  * @returns Label reference or null
  */
 export async function getLabelByTrackingNumber(
-  _trackingNumber: string,
+  trackingNumber: string,
 ): Promise<LabelRef | null> {
-  // TODO: Query Firestore
-  // const snapshot = await db
-  //   .collection('shipments')
-  //   .where('trackingNumbers', 'array-contains', trackingNumber)
-  //   .get();
-  //
-  // if (snapshot.empty) return null;
-  //
-  // const shipment = snapshot.docs[0].data() as Shipment;
-  // return shipment.labels.find(
-  //   (l) => l.trackingNumber === trackingNumber,
-  // ) || null;
+  // Query Firestore for shipment with this tracking number
+  const shipment = await firestoreService.getShipmentByTrackingNumber(trackingNumber);
+  
+  if (!shipment) return null;
 
-  return null;
+  return shipment.labels.find(
+    (l) => l.trackingNumber === trackingNumber,
+  ) || null;
 }
 
 /**
