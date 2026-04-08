@@ -9,6 +9,14 @@ interface User {
   role: 'admin' | 'user';
 }
 
+// AUTH BYPASS: Mock user for bypass mode
+const mockUser: User = {
+  id: 'bypass-user-id',
+  email: 'demo@shipsmart.local',
+  name: 'Demo User',
+  role: 'admin',
+};
+
 interface AuthStore {
   user: User | null;
   token: string | null;
@@ -22,11 +30,12 @@ interface AuthStore {
 }
 
 export const useAuthStore = create<AuthStore>()((set, get) => ({
-  user: null,
-  token: null,
-  isAuthenticated: false,
+  // AUTH BYPASS: Default to authenticated state with mock user
+  user: mockUser,
+  token: 'bypass-token',
+  isAuthenticated: true,
   isLoading: false,
-  initialized: false,
+  initialized: true,
 
   initialize: () => {
     // Skip if already initialized

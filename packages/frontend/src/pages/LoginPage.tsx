@@ -1,4 +1,4 @@
-import { useState, FormEvent } from 'react';
+import { useState, FormEvent, useEffect } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useAuthStore } from '../stores/useAuthStore';
 import { useToast } from '../hooks/useToast';
@@ -21,6 +21,11 @@ export function LoginPage() {
   const { setFirebaseUser } = useAuthStore();
   
   const from = (location.state as any)?.from?.pathname || '/';
+
+  // AUTH BYPASS: Redirect to dashboard immediately on mount
+  useEffect(() => {
+    navigate('/', { replace: true });
+  }, [navigate]);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
