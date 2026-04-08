@@ -1,0 +1,40 @@
+# =============================================================================
+# Cloud Build configuration for ShipSmart Backend
+# =============================================================================
+
+steps:
+  # Build the Docker image
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-t'
+      - 'gcr.io/shipsmart-app-dev/shipsmart-api:v1'
+      - '.'
+
+  # Push the Docker image
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - 'gcr.io/shipsmart-app-dev/shipsmart-api:v1'
+
+  # Deploy to Cloud Run
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      - 'run'
+      - 'deploy'
+      - 'shipsmart-api'
+      - '--image'
+      - 'gcr.io/shipsmart-app-dev/shipsmart-api:v1'
+      - '--region'
+      - 'us-central1'
+      - '--allow-unauthenticated'
+      - '--platform'
+      - 'managed'
+
+# Store images in Container Registry
+images:
+  - 'gcr.io/shipsmart-app-dev/shipsmart-api:v1'
+
+# Build timeout (20 minutes)
+timeout: '1200s'

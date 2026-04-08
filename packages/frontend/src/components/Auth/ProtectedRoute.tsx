@@ -7,9 +7,17 @@ interface ProtectedRouteProps {
   allowedRoles?: ('admin' | 'user')[];
 }
 
+// Development mode flag
+const isDev = import.meta.env.DEV;
+
 export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) {
   const { isAuthenticated, user } = useAuthStore();
   const location = useLocation();
+
+  // Skip auth check in development mode
+  if (isDev) {
+    return <>{children}</>;
+  }
 
   if (!isAuthenticated) {
     // Redirect to login page with the return url

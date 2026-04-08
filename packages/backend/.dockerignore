@@ -1,0 +1,37 @@
+# Dependencies
+node_modules
+packages/*/node_modules
+packages/*/dist
+
+# Build artifacts
+*.tsbuildinfo
+dist
+
+# Development files
+*.log
+npm-debug.log*
+.env
+.env.*
+.env.local
+
+# IDE and OS
+.DS_Store
+.idea
+.vscode
+
+# Version control
+.git
+.gitignore
+
+# Documentation
+*.md
+!README.md
+
+# Tests
+**/*.test.ts
+**/*.test.tsx
+**/*.spec.ts
+**/*.spec.tsx
+coverage
+*.test.js
+*.spec.js

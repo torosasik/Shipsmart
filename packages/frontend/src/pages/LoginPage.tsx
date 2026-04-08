@@ -1,8 +1,13 @@
 import { useState, FormEvent } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
-import { useAuthStore, demoLogin } from '../stores/useAuthStore';
+import { useAuthStore } from '../stores/useAuthStore';
 import { useToast } from '../hooks/useToast';
 import { Button, Input } from '../components/ui';
+import { signInWithEmailAndPassword } from 'firebase/auth';
+import { auth } from '../firebase';
+
+// Development mode flag
+const isDev = import.meta.env.DEV;
 
 export function LoginPage() {
   const [email, setEmail] = useState('');
@@ -13,28 +18,59 @@ export function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const toast = useToast();
-  const setUser = useAuthStore((state) => state.setUser);
+  const { setFirebaseUser } = useAuthStore();
   
   const from = (location.state as any)?.from?.pathname || '/';
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setError('');
+
+    // In dev mode, skip authentication and allow access
+    if (isDev) {
+      toast.success('Development mode: Access granted!');
+      navigate(from, { replace: true });
+      return;
+    }
+
     setIsLoading(true);
 
     try {
-      // Use demo login for testing (replace with actual login in production)
-      const { user, token } = await demoLogin(email, password);
-      setUser(user, token);
-      toast.success(`Welcome back, ${user.name}!`);
+      // Sign in with Firebase Auth
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      const firebaseUser = userCredential.user;
+      
+      // Update auth store with Firebase user
+      setFirebaseUser(firebaseUser);
+      
+      toast.success(`Welcome back, ${firebaseUser.email}!`);
       navigate(from, { replace: true });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Login failed');
-      toast.error('Login failed. Please try again.');
+    } catch (err: any) {
+      console.error('Login error:', err);
+      const errorMessage = getFirebaseErrorMessage(err.code);
+      setError(errorMessage);
+      toast.error(errorMessage);
     } finally {
       setIsLoading(false);
     }
   };
+
+  function getFirebaseErrorMessage(code: string): string {
+    switch (code) {
+      case 'auth/user-not-found':
+        return 'No account found with this email address.';
+      case 'auth/wrong-password':
+        return 'Incorrect password. Please try again.';
+      case 'auth/invalid-email':
+        return 'Please enter a valid email address.';
+      case 'auth/too-many-requests':
+        return 'Too many failed attempts. Please try again later.';
+      case 'auth/invalid-credential':
+        return 'Invalid email or password.';
+      default:
+        return 'Login failed. Please try again.';
+    }
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 px-4">

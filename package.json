@@ -7,14 +7,17 @@
     "packages/*"
   ],
   "scripts": {
-    "dev": "npm run dev:backend",
+    "dev": "concurrently --names \"frontend,backend\" --prefix-colors \"cyan,yellow\" \"npm run dev:frontend\" \"npm run dev:backend\"",
     "dev:backend": "npm run dev --workspace=@shipsmart/backend",
     "dev:frontend": "npm run dev --workspace=@shipsmart/frontend",
     "build": "npm run build --workspaces --if-present",
     "build:backend": "npm run build --workspace=@shipsmart/backend",
     "build:frontend": "npm run build --workspace=@shipsmart/frontend",
     "lint": "npm run lint --workspaces --if-present",
-    "format": "prettier --write \"packages/**/*.{ts,tsx,json}\""
+    "format": "prettier --write \"packages/**/*.{ts,tsx,json}\"",
+    "deploy:cloudrun": "gcloud run deploy shipsmart-api --dockerfile packages/backend/Dockerfile --region us-central1 --platform managed",
+    "deploy:hosting": "npm run build:frontend && firebase deploy --only hosting",
+    "deploy:all": "npm run build:frontend && npm run deploy:cloudrun && firebase deploy --only hosting"
   },
   "devDependencies": {
     "concurrently": "^8.2.2",

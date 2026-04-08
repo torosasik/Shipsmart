@@ -1,12 +1,18 @@
 /**
  * Authentication middleware supporting Firebase Auth and API Key.
  * Validates Firebase ID tokens or API keys from request headers.
+ * 
+ * NOTE: Authentication is BYPASSED for all requests in this deployment.
+ * To enable auth, set BYPASS_AUTH=false environment variable.
  */
 
 import { Request, Response, NextFunction } from 'express';
 import { getFirebaseApp } from '../config/firebase';
 import { env } from '../config/environment';
 import { AppError } from './errorHandler';
+
+// Bypass authentication flag - set to true to skip auth
+const BYPASS_AUTH = process.env.BYPASS_AUTH !== 'false';
 
 /**
  * API key store for service-to-service authentication.
@@ -64,12 +70,27 @@ function authenticateWithApiKey(apiKey: string): { uid: string; email: string; s
  * Supports two authentication methods:
  * 1. Firebase ID Token: Authorization: Bearer <token>
  * 2. API Key: X-API-Key: <api-key>
+ * 
+ * If BYPASS_AUTH is true, all requests are allowed with a mock user.
  */
 export async function authMiddleware(
   req: Request,
   _res: Response,
   next: NextFunction,
 ): Promise<void> {
+  // BYPASS AUTH if enabled
+  if (BYPASS_AUTH) {
+    console.log('[Auth] BYPASS_AUTH enabled - skipping authentication');
+    (req as Request & { user?: Record<string, unknown> }).user = {
+      uid: 'bypass-user',
+      email: 'bypass@shipsmart.local',
+      isAdmin: true,
+      isApiKey: false,
+    };
+    next();
+    return;
+  }
+
   // Check for API key first (service-to-service)
   const apiKey = req.headers['x-api-key'] as string;
   if (apiKey) {

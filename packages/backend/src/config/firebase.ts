@@ -19,28 +19,36 @@ export function initializeFirebase(): admin.app.App | null {
     return firebaseApp;
   }
 
-  if (!env.hasFirebaseCredentials) {
-    console.warn(
-      '[Firebase] Missing Firebase Admin SDK credentials. ' +
-        'Firebase features will be disabled. ' +
-        'Set FIREBASE_CLIENT_EMAIL and FIREBASE_PRIVATE_KEY in your .env file.',
-    );
-    return null;
-  }
-
   try {
-    // Parse the private key (may contain escaped newlines)
-    const privateKey = env.firebasePrivateKey.replace(/\\n/g, '\n');
+    if (env.hasFirebaseCredentials) {
+      // Parse the private key (may contain escaped newlines)
+      const privateKey = env.firebasePrivateKey.replace(/\\n/g, '\n');
 
-    firebaseApp = admin.initializeApp({
-      credential: admin.credential.cert({
+      firebaseApp = admin.initializeApp({
+        credential: admin.credential.cert({
+          projectId: env.firebaseProjectId,
+          clientEmail: env.firebaseClientEmail,
+          privateKey: privateKey,
+        }),
+      });
+      console.log('[Firebase] Admin SDK initialized with service account credentials');
+    } else if (env.firebaseProjectId) {
+      // Fall back to Application Default Credentials (ADC)
+      // Works with: gcloud auth application-default login, Workload Identity, etc.
+      firebaseApp = admin.initializeApp({
+        credential: admin.credential.applicationDefault(),
         projectId: env.firebaseProjectId,
-        clientEmail: env.firebaseClientEmail,
-        privateKey: privateKey,
-      }),
-    });
+      });
+      console.log('[Firebase] Admin SDK initialized with Application Default Credentials');
+    } else {
+      console.warn(
+        '[Firebase] Missing Firebase credentials and project ID. ' +
+          'Firebase features will be disabled. ' +
+          'Set FIREBASE_PROJECT_ID and either service account credentials or configure ADC.',
+      );
+      return null;
+    }
 
-    console.log('[Firebase] Admin SDK initialized successfully');
     return firebaseApp;
   } catch (error) {
     console.error('[Firebase] Failed to initialize Admin SDK:', error);

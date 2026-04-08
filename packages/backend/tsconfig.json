@@ -5,7 +5,12 @@
     "rootDir": "./src",
     "declaration": true,
     "declarationMap": true,
-    "sourceMap": true
+    "sourceMap": true,
+    "baseUrl": ".",
+    "paths": {
+      "@shipsmart/shared": ["../../packages/shared/dist"],
+      "@shipsmart/shared/*": ["../../packages/shared/dist/*"]
+    }
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist"]

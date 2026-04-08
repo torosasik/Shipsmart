@@ -5,6 +5,7 @@ import { BrowserRouter } from 'react-router-dom';
 import { App } from './App';
 import { AppErrorBoundary } from './components';
 import { ToastContainer } from './components/Toast/ToastContainer';
+import { useAuthStore } from './stores/useAuthStore';
 import './index.css';
 
 const queryClient = new QueryClient({
@@ -15,6 +16,9 @@ const queryClient = new QueryClient({
     },
   },
 });
+
+// Initialize Firebase Auth listener
+useAuthStore.getState().initialize();
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

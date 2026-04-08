@@ -101,7 +101,7 @@ app.use(errorHandler);
 // Start Server
 // ============================================================================
 
-const PORT = env.port;
+const PORT = parseInt(process.env.PORT || env.port.toString(), 10);
 
 app.listen(PORT, () => {
   console.log(`[Server] ShipSmart API running on port ${PORT}`);

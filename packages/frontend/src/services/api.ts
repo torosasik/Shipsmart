@@ -1,18 +1,28 @@
 import axios from 'axios';
 import type { ApiResponse, PaginatedResponse } from '../types';
 import type { Order, Shipment, ReturnEvent } from '@shipsmart/shared';
+import { CLOUD_RUN_URL, getIdToken } from '../firebase';
+
+// Use localhost in development, Cloud Run URL in production
+const isDev = import.meta.env.DEV;
+const BASE_URL = isDev ? 'http://localhost:3001/api' : `${CLOUD_RUN_URL}/api`;
 
 const api = axios.create({
-  baseURL: '/api',
+  baseURL: BASE_URL,
   timeout: 30000,
   headers: {
     'Content-Type': 'application/json',
   },
 });
 
-// Request interceptor for auth token
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('authToken');
+// Request interceptor for Firebase Auth token (only in production)
+api.interceptors.request.use(async (config) => {
+  // Skip auth in development mode
+  if (isDev) {
+    return config;
+  }
+  // Get fresh Firebase ID token for each request in production
+  const token = await getIdToken();
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }

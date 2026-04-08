@@ -1,5 +1,6 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { User as FirebaseUserType } from 'firebase/auth';
+import { signIn, signOut as firebaseSignOut, onAuthChange } from '../firebase';
 
 interface User {
   id: string;
@@ -13,102 +14,92 @@ interface AuthStore {
   token: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  initialized: boolean;
   login: (email: string, password: string) => Promise<void>;
-  logout: () => void;
-  setUser: (user: User, token: string) => void;
+  logout: () => Promise<void>;
+  initialize: () => void;
+  setFirebaseUser: (firebaseUser: FirebaseUserType) => Promise<void>;
 }
 
-export const useAuthStore = create<AuthStore>()(
-  persist(
-    (set) => ({
-      user: null,
-      token: null,
-      isAuthenticated: false,
-      isLoading: false,
-      
-      login: async (email: string, password: string) => {
-        set({ isLoading: true });
-        
-        try {
-          // Replace with actual API call
-          const response = await fetch('/api/auth/login', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email, password }),
-          });
-          
-          if (!response.ok) {
-            throw new Error('Invalid credentials');
-          }
-          
-          const data = await response.json();
-          set({
-            user: data.user,
-            token: data.token,
-            isAuthenticated: true,
-            isLoading: false,
-          });
-        } catch (error) {
-          set({ isLoading: false });
-          throw error;
-        }
-      },
-      
-      logout: () => {
+export const useAuthStore = create<AuthStore>()((set, get) => ({
+  user: null,
+  token: null,
+  isAuthenticated: false,
+  isLoading: false,
+  initialized: false,
+
+  initialize: () => {
+    // Skip if already initialized
+    if (get().initialized) return;
+    
+    // Listen to Firebase Auth state changes
+    onAuthChange(async (firebaseUser) => {
+      if (firebaseUser) {
+        const token = await firebaseUser.getIdToken();
+        set({
+          user: {
+            id: firebaseUser.uid,
+            email: firebaseUser.email || '',
+            name: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'User',
+            role: 'user', // Could be enhanced with custom claims
+          },
+          token,
+          isAuthenticated: true,
+          initialized: true,
+        });
+      } else {
         set({
           user: null,
           token: null,
           isAuthenticated: false,
+          initialized: true,
         });
-      },
-      
-      setUser: (user: User, token: string) => {
-        set({
-          user,
-          token,
-          isAuthenticated: true,
-        });
-      },
-    }),
-    {
-      name: 'shipsmart-auth',
-      partialize: (state) => ({
-        user: state.user,
-        token: state.token,
-        isAuthenticated: state.isAuthenticated,
-      }),
-    }
-  )
-);
+      }
+    });
+  },
 
-// Demo login function for testing without backend
-export async function demoLogin(email: string, password: string): Promise<{ user: User; token: string }> {
-  // Simulate API delay
-  await new Promise(resolve => setTimeout(resolve, 1000));
-  
-  if (email === 'admin@shipsmart.com' && password === 'admin') {
-    return {
+  login: async (email: string, password: string) => {
+    set({ isLoading: true });
+    try {
+      const user = await signIn(email, password);
+      const token = await user.getIdToken();
+      set({
+        user: {
+          id: user.uid,
+          email: user.email || '',
+          name: user.displayName || user.email?.split('@')[0] || 'User',
+          role: 'user',
+        },
+        token,
+        isAuthenticated: true,
+        isLoading: false,
+      });
+    } catch (error) {
+      set({ isLoading: false });
+      throw error;
+    }
+  },
+
+  logout: async () => {
+    await firebaseSignOut();
+    set({
+      user: null,
+      token: null,
+      isAuthenticated: false,
+    });
+  },
+
+  setFirebaseUser: async (firebaseUser: FirebaseUserType) => {
+    const token = await firebaseUser.getIdToken();
+    set({
       user: {
-        id: '1',
-        email: 'admin@shipsmart.com',
-        name: 'Admin User',
-        role: 'admin',
-      },
-      token: 'demo-token-admin',
-    };
-  }
-  
-  if (email && password) {
-    return {
-      user: {
-        id: '2',
-        email,
-        name: email.split('@')[0],
+        id: firebaseUser.uid,
+        email: firebaseUser.email || '',
+        name: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'User',
         role: 'user',
       },
-      token: 'demo-token-user',
-    };
-  }
-  
-  throw new Error('Invalid credentials');
-}
+      token,
+      isAuthenticated: true,
+    });
+  },
+}));
