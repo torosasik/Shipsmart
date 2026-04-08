@@ -143,4 +143,15 @@ export const carrierSettingsApi = {
     api.post<ApiResponse<unknown>>(`/settings/carriers/${carrierId}/test`).then((r) => r.data),
 };
 
+export const shopifySettingsApi = {
+  get: () =>
+    api.get<ApiResponse<unknown>>('/settings/shopify').then((r) => r.data),
+  update: (data: { storeDomain: string; accessToken: string; webhookSecret: string; apiVersion: string; enabled: boolean }) =>
+    api.put<ApiResponse<unknown>>('/settings/shopify', data).then((r) => r.data),
+  test: () =>
+    api.post<ApiResponse<unknown>>('/settings/shopify/test').then((r) => r.data),
+  sync: () =>
+    api.post<ApiResponse<unknown>>('/settings/shopify/sync').then((r) => r.data),
+};
+
 export default api;

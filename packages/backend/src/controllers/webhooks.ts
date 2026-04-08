@@ -4,7 +4,7 @@
  */
 
 import { Request, Response, NextFunction } from 'express';
-import { CarrierId, ShipmentStatus } from '@shipsmart/shared';
+import { CarrierId, ShipmentStatus, Order, OrderStatus, Timestamp } from '@shipsmart/shared';
 import { logTrackingSynced } from '../services/audit';
 import { firestoreService } from '../services/firestore';
 
@@ -126,6 +126,7 @@ export async function handleShopifyOrderWebhook(
 ): Promise<void> {
   try {
     const payload = req.body as ShopifyWebhookPayload;
+    const webhookId = req.headers['x-shopify-webhook-id'] as string;
 
     if (!payload.id) {
       res.status(400).json({
@@ -135,19 +136,91 @@ export async function handleShopifyOrderWebhook(
       return;
     }
 
-    // TODO: Transform and upsert order into Firestore
-    // const order = shopifyService.transformOrder(payload);
-    // await firestoreService.saveOrder(order);
+    // Idempotency check - prevent duplicate processing of the same webhook
+    if (webhookId) {
+      const alreadyProcessed = await firestoreService.getDocument('processedWebhooks', webhookId);
+      if (alreadyProcessed) {
+        console.log(`[Webhook] Duplicate webhook ${webhookId} ignored`);
+        res.json({
+          success: true,
+          data: { orderId: payload.id.toString(), processed: false, reason: 'duplicate' },
+        });
+        return;
+      }
+    }
 
-    console.log(`[Webhook] Received Shopify order webhook: ${payload.id}`);
+    // Create Shopify service instance with Firestore credentials
+    const { ShopifyService } = await import('../services/shopify');
+    const shopifyService = await ShopifyService.fromFirestore();
+
+    // Fetch the full order from Shopify using the webhook payload ID
+    const fullOrder = await shopifyService.getOrder(payload.id.toString());
+    if (!fullOrder) {
+      console.warn(`[Webhook] Order ${payload.id} not found in Shopify`);
+      res.status(404).json({
+        success: false,
+        error: 'Order not found in Shopify',
+      });
+      return;
+    }
+
+    // Transform Shopify order to internal format
+    const orderData = shopifyService.transformOrder(fullOrder);
+    const orderId = orderData.id as string;
+
+    // Check if order already exists
+    const existingOrder = await firestoreService.getOrder(orderId);
+
+    if (existingOrder) {
+      // Update existing order
+      await firestoreService.updateDocument('orders', orderId, {
+        ...orderData,
+        updatedAt: new Date(),
+      } as Partial<Record<string, unknown>>);
+      console.log(`[Webhook] Updated existing order: ${orderId}`);
+    } else {
+      // Create new order
+      const order: Order = {
+        id: orderId,
+        shopifyOrderId: orderData.shopifyOrderId as string,
+        customerName: orderData.customerName as string,
+        customerEmail: orderData.customerEmail as string,
+        shippingAddress: orderData.shippingAddress as Order['shippingAddress'],
+        lineItems: orderData.lineItems as Order['lineItems'],
+        totalWeight: orderData.totalWeight as number,
+        boxCount: orderData.boxCount as number,
+        status: (orderData.status as OrderStatus) || OrderStatus.Pending,
+        createdAt: orderData.createdAt as unknown as Timestamp,
+        updatedAt: orderData.updatedAt as unknown as Timestamp,
+        syncedAt: orderData.syncedAt as unknown as Timestamp,
+      };
+      await firestoreService.saveOrder(order);
+      console.log(`[Webhook] Created new order: ${orderId}`);
+    }
+
+    // Mark webhook as processed for idempotency
+    if (webhookId) {
+      await firestoreService.createDocument('processedWebhooks', webhookId, {
+        processedAt: new Date(),
+        orderId: orderId,
+        webhookType: 'orders',
+      });
+    }
+
+    // Update last sync timestamp
+    const { updateLastSyncTimestamp } = await import('../services/shopify-settings');
+    await updateLastSyncTimestamp();
 
     res.json({
       success: true,
       data: {
-        orderId: payload.id.toString(),
+        orderId: orderId,
+        processed: true,
+        created: !existingOrder,
       },
     });
   } catch (error) {
+    console.error('[Webhook] Error processing Shopify order webhook:', error);
     next(error);
   }
 }
@@ -163,6 +236,7 @@ export async function handleShopifyFulfillmentWebhook(
 ): Promise<void> {
   try {
     const payload = req.body as ShopifyWebhookPayload;
+    const webhookId = req.headers['x-shopify-webhook-id'] as string;
 
     if (!payload.id || !payload.fulfillments?.length) {
       res.status(400).json({
@@ -174,17 +248,89 @@ export async function handleShopifyFulfillmentWebhook(
 
     const fulfillment = payload.fulfillments[0];
 
-    // TODO: Update shipment tracking if fulfillment status changed
-    console.log(`[Webhook] Received Shopify fulfillment webhook: ${payload.id}`);
+    // Idempotency check
+    if (webhookId) {
+      const alreadyProcessed = await firestoreService.getDocument('processedWebhooks', webhookId);
+      if (alreadyProcessed) {
+        console.log(`[Webhook] Duplicate fulfillment webhook ${webhookId} ignored`);
+        res.json({
+          success: true,
+          data: { processed: false, reason: 'duplicate' },
+        });
+        return;
+      }
+    }
+
+    // Only process if there's a tracking number (indicates fulfillment was shipped)
+    if (!fulfillment.tracking_number) {
+      console.log(`[Webhook] Fulfillment ${fulfillment.id} has no tracking number, skipping`);
+      res.json({
+        success: true,
+        data: { processed: false, reason: 'no_tracking' },
+      });
+      return;
+    }
+
+    // Find shipment by tracking number
+    const shipment = await firestoreService.getShipmentByTrackingNumber(fulfillment.tracking_number);
+    if (!shipment) {
+      console.warn(`[Webhook] Shipment not found for tracking number: ${fulfillment.tracking_number}`);
+      res.status(404).json({
+        success: false,
+        error: 'Shipment not found for tracking number',
+      });
+      return;
+    }
+
+    // Map fulfillment status to shipment status
+    const newStatus = mapFulfillmentStatusToShipmentStatus(fulfillment.status);
+
+    // Update shipment if status changed
+    if (newStatus && newStatus !== shipment.status) {
+      await firestoreService.updateShipmentStatus(shipment.id, newStatus);
+
+      // Update deliveredAt if delivered
+      if (newStatus === ShipmentStatus.Delivered) {
+        await firestoreService.updateDocument('shipments', shipment.id, {
+          deliveredAt: new Date(),
+        } as Partial<Record<string, unknown>>);
+      }
+
+      // Log audit event
+      await logTrackingSynced('shopify', shipment.id, {
+        source: 'webhook',
+        carrier: shipment.carrier,
+        previousStatus: shipment.status,
+        newStatus,
+        trackingNumber: fulfillment.tracking_number,
+      });
+
+      console.log(`[Webhook] Updated shipment ${shipment.id} status from ${shipment.status} to ${newStatus}`);
+    }
+
+    // Mark webhook as processed
+    if (webhookId) {
+      await firestoreService.createDocument('processedWebhooks', webhookId, {
+        processedAt: new Date(),
+        orderId: payload.id.toString(),
+        fulfillmentId: fulfillment.id.toString(),
+        webhookType: 'fulfillments',
+      });
+    }
 
     res.json({
       success: true,
       data: {
+        shipmentId: shipment.id,
         orderId: payload.id.toString(),
         fulfillmentId: fulfillment.id.toString(),
+        previousStatus: shipment.status,
+        newStatus: newStatus || shipment.status,
+        processed: true,
       },
     });
   } catch (error) {
+    console.error('[Webhook] Error processing Shopify fulfillment webhook:', error);
     next(error);
   }
 }
@@ -207,4 +353,21 @@ function mapTrackingStatusToShipmentStatus(status: string): ShipmentStatus {
   };
 
   return statusMap[status.toLowerCase()] || ShipmentStatus.Created;
+}
+
+/**
+ * Map Shopify fulfillment status to shipment status.
+ * Shopify fulfillment statuses: pending, open, success, cancelled, error, failure
+ */
+function mapFulfillmentStatusToShipmentStatus(status: string): ShipmentStatus | null {
+  const statusMap: Record<string, ShipmentStatus> = {
+    success: ShipmentStatus.InTransit, // Fulfillment completed successfully - shipment is now in transit
+    open: ShipmentStatus.InTransit,     // Fulfillment is in progress
+    pending: ShipmentStatus.Created,    // Fulfillment created but not started
+    cancelled: ShipmentStatus.Created,  // Cancelled fulfillment - revert to created state
+    error: ShipmentStatus.Created,      // Error in fulfillment - revert to created state
+    failure: ShipmentStatus.Created,    // Failed fulfillment - revert to created state
+  };
+
+  return statusMap[status.toLowerCase()] || null;
 }

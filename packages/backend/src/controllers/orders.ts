@@ -11,7 +11,7 @@ import {
 } from '@shipsmart/shared';
 import { ApiResponse, PaginatedResponse } from '../models';
 import { firestoreService } from '../services/firestore';
-import { shopifyService } from '../services/shopify';
+import { ShopifyService } from '../services/shopify';
 
 /**
  * GET /api/orders
@@ -115,7 +115,8 @@ export async function syncFromShopifyHandler(
     const lastSyncDate = new Date();
     lastSyncDate.setHours(lastSyncDate.getHours() - 24);
 
-    // Fetch orders from Shopify
+    // Fetch orders from Shopify using Firestore credentials
+    const shopifyService = await ShopifyService.fromFirestore();
     const shopifyOrders = await shopifyService.getOrdersSince(lastSyncDate, 50);
 
     const errors: string[] = [];

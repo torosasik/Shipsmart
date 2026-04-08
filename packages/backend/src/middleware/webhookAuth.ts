@@ -29,11 +29,11 @@ declare global {
  * Verify Shopify webhook HMAC signature.
  * Shopify sends X-Shopify-Hmac-Sha256 header computed from the raw request body.
  */
-export function verifyShopifyWebhook(
+export async function verifyShopifyWebhook(
   req: Request,
   res: Response,
   next: NextFunction,
-): void {
+): Promise<void> {
   const hmacHeader = req.headers['x-shopify-hmac-sha256'] as string;
 
   if (!hmacHeader) {
@@ -50,18 +50,29 @@ export function verifyShopifyWebhook(
     ? req.rawBody.toString('utf8')
     : JSON.stringify(req.body);
 
-  const secret = env.shopifySharedSecret;
+  // Try to load webhook secret from Firestore first
+  let secret: string | undefined = env.shopifySharedSecret;
+  if (!secret) {
+    try {
+      const { getShopifySettings } = await import('../services/shopify-settings');
+      const settings = await getShopifySettings();
+      secret = settings?.webhookSecret;
+    } catch (error) {
+      console.warn('[Webhook] Could not load Shopify settings from Firestore:', error);
+    }
+  }
+
   if (!secret) {
     // Fail closed in production
     if (env.isProd) {
-      console.error('[Webhook] SHOPIFY_SHARED_SECRET not configured in production');
+      console.error('[Webhook] Shopify webhook secret not configured in production (neither env var nor Firestore)');
       res.status(500).json({
         success: false,
         error: 'Webhook verification not configured',
       });
       return;
     }
-    console.warn('[Webhook] SHOPIFY_SHARED_SECRET not configured, allowing in dev mode');
+    console.warn('[Webhook] Shopify webhook secret not configured, allowing in dev mode');
     next();
     return;
   }

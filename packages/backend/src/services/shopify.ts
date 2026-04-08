@@ -100,6 +100,28 @@ export class ShopifyService {
   }
 
   /**
+   * Static factory method to create a ShopifyService instance from Firestore settings.
+   * Falls back to environment variables if Firestore settings are not configured.
+   */
+  static async fromFirestore(): Promise<ShopifyService> {
+    const { getShopifySettings } = await import('./shopify-settings');
+    const settings = await getShopifySettings();
+
+    // Use Firestore settings if available, otherwise fall back to env vars
+    const config: Partial<ShopifyConfig> = settings ? {
+      storeDomain: settings.storeDomain,
+      accessToken: settings.accessToken,
+      apiVersion: settings.apiVersion,
+    } : {
+      storeDomain: process.env.SHOPIFY_STORE_DOMAIN || '',
+      accessToken: process.env.SHOPIFY_ACCESS_TOKEN || '',
+      apiVersion: process.env.SHOPIFY_API_VERSION || '2024-01',
+    };
+
+    return new ShopifyService(config);
+  }
+
+  /**
    * Fetch orders from Shopify since a given date.
    */
   async getOrdersSince(sinceDate: Date, limit: number = 50): Promise<ShopifyOrder[]> {

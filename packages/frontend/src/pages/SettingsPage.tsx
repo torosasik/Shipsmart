@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
-import { healthApi } from '../services/api';
+import { healthApi, shopifySettingsApi } from '../services/api';
 import { useThemeStore } from '../stores/useThemeStore';
+import { Link } from 'react-router-dom';
 
 type Theme = 'light' | 'dark' | 'system';
 
@@ -10,8 +11,8 @@ const themeOptions: { value: Theme; label: string }[] = [
   { value: 'system', label: '💻 System' },
 ];
 
-function ConfigRow({ label, configured }: { label: string; configured: boolean }) {
-  return (
+function ConfigRow({ label, configured, link }: { label: string; configured: boolean; link?: string }) {
+  const content = (
     <div className="flex items-center justify-between py-3 border-b border-gray-100 dark:border-gray-700 last:border-0">
       <span className="text-sm text-gray-700 dark:text-gray-300">{label}</span>
       <span
@@ -26,6 +27,16 @@ function ConfigRow({ label, configured }: { label: string; configured: boolean }
       </span>
     </div>
   );
+
+  if (link) {
+    return (
+      <Link to={link} className="block hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
+        {content}
+      </Link>
+    );
+  }
+
+  return content;
 }
 
 function SectionCard({ title, children }: { title: string; children: React.ReactNode }) {
@@ -44,6 +55,12 @@ export function SettingsPage() {
   const { data: health } = useQuery({
     queryKey: ['health'],
     queryFn: healthApi.get,
+    staleTime: 60_000,
+  });
+
+  const { data: shopifySettings } = useQuery({
+    queryKey: ['shopify-settings'],
+    queryFn: () => shopifySettingsApi.get().then(r => r.data),
     staleTime: 60_000,
   });
 
@@ -84,6 +101,11 @@ export function SettingsPage() {
           {health ? (
             <div>
               <ConfigRow label="Firebase / Firestore" configured={health.services.firebase.status === 'healthy'} />
+              <ConfigRow
+                label="Shopify Integration"
+                configured={shopifySettings?.configured ?? false}
+                link="/settings/shopify"
+              />
               {Object.entries(health.services.carriers).map(([carrier, info]) => (
                 <ConfigRow
                   key={carrier}
