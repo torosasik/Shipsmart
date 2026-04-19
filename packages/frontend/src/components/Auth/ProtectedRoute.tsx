@@ -1,4 +1,4 @@
-import { ReactNode } from 'react';
+import { ReactNode, useEffect } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuthStore } from '../../stores/useAuthStore';
 
@@ -7,8 +7,18 @@ interface ProtectedRouteProps {
   allowedRoles?: ('admin' | 'user')[];
 }
 
+const TEST_MODE = import.meta.env.VITE_TEST_MODE === 'true';
+const TEST_EMAIL = import.meta.env.VITE_TEST_EMAIL || '';
+const TEST_PASSWORD = import.meta.env.VITE_TEST_PASSWORD || '';
+
 export function ProtectedRoute({ children }: ProtectedRouteProps) {
-  const { isAuthenticated, isLoading } = useAuthStore();
+  const { isAuthenticated, isLoading, login } = useAuthStore();
+
+  useEffect(() => {
+    if (TEST_MODE && TEST_EMAIL && TEST_PASSWORD && !isAuthenticated && !isLoading) {
+      login(TEST_EMAIL, TEST_PASSWORD).catch(() => {});
+    }
+  }, [isAuthenticated, isLoading, login]);
 
   if (isLoading) {
     return (
