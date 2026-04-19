@@ -2,7 +2,7 @@
  * Unit tests for dimensional weight calculations.
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import {
   calculateDimensionalWeight,
   calculateBillableWeight,

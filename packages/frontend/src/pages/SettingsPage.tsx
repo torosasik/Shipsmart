@@ -58,11 +58,22 @@ export function SettingsPage() {
     staleTime: 60_000,
   });
 
+
+  type ShopifySettingsData = {
+    enabled: boolean;
+    configured: boolean;
+    webhookRegistered: boolean;
+    lastSyncAt?: string;
+    apiVersion: string;
+    maskedCredentials: Record<string, string>;
+  };
+
   const { data: shopifySettings } = useQuery({
     queryKey: ['shopify-settings'],
-    queryFn: () => shopifySettingsApi.get().then(r => r.data),
+    queryFn: () => shopifySettingsApi.get().then(r => r.data as ShopifySettingsData),
     staleTime: 60_000,
   });
+
 
   return (
     <div className="p-6 max-w-3xl mx-auto">

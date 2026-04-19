@@ -3,8 +3,8 @@
  * Tests known inputs/outputs for the rate shopping and multi-box optimization.
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { RateRequest, CarrierId, Address } from '@shipsmart/shared';
+import { describe, it, expect, beforeEach } from 'vitest';
+import { RateRequest, Address } from '@shipsmart/shared';
 import {
   shopRates,
   generateMultiBoxOptions,

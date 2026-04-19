@@ -59,23 +59,25 @@ export async function updateShopifySettings(req: Request, res: Response): Promis
       return;
     }
 
-    if (typeof webhookSecret !== 'string' || webhookSecret.trim().length === 0) {
-      res.status(400).json({ success: false, error: 'webhookSecret is required' });
-      return;
-    }
-
     if (typeof apiVersion !== 'string' || apiVersion.trim().length === 0) {
       res.status(400).json({ success: false, error: 'apiVersion is required' });
       return;
     }
 
-    await saveShopifySettings({
+    // Only pass webhookSecret if it was provided and non-empty (it's optional)
+    const settingsPayload: Parameters<typeof saveShopifySettings>[0] = {
       storeDomain: storeDomain.trim(),
       accessToken: accessToken.trim(),
-      webhookSecret: webhookSecret.trim(),
       apiVersion: apiVersion.trim(),
       enabled,
-    });
+    };
+
+    // Only include webhookSecret if provided
+    if (webhookSecret && webhookSecret.trim().length > 0) {
+      settingsPayload.webhookSecret = webhookSecret.trim();
+    }
+
+    await saveShopifySettings(settingsPayload);
 
     res.json({ success: true, message: 'Shopify settings updated successfully' });
   } catch (error) {

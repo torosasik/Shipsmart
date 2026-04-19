@@ -75,20 +75,38 @@ export function ShopifySettingsPage() {
       setSaving(true);
       setSaveMessage(null);
 
-      await shopifySettingsApi.update({
+      // Client-side validation
+      if (formState.enabled && (!formState.storeDomain || !formState.accessToken)) {
+        setSaveMessage({
+          type: 'error',
+          text: 'Store domain and access token are required when enabling Shopify integration',
+        });
+        setSaving(false);
+        return;
+      }
+
+      // Build payload, only include webhookSecret if non-empty
+      const payload: { storeDomain: string; accessToken: string; apiVersion: string; enabled: boolean; webhookSecret?: string } = {
         storeDomain: formState.storeDomain,
         accessToken: formState.accessToken,
-        webhookSecret: formState.webhookSecret,
         apiVersion: formState.apiVersion,
         enabled: formState.enabled,
-      });
+      };
+
+      if (formState.webhookSecret && formState.webhookSecret.trim().length > 0) {
+        payload.webhookSecret = formState.webhookSecret;
+      }
+
+      await shopifySettingsApi.update(payload);
 
       setSaveMessage({ type: 'success', text: 'Shopify settings saved successfully' });
       await loadSettings(); // Reload to show masked credentials
     } catch (err: any) {
+      // Extract error message from various error formats
+      const errorMessage = err.response?.data?.error || err.message || 'Failed to save settings';
       setSaveMessage({
         type: 'error',
-        text: err.response?.data?.error || 'Failed to save settings',
+        text: errorMessage,
       });
     } finally {
       setSaving(false);
@@ -104,9 +122,11 @@ export function ShopifySettingsPage() {
         text: response.data.message,
       });
     } catch (err: any) {
+      // Extract error message from various error formats
+      const errorMessage = err.response?.data?.error || err.message || 'Failed to test connection';
       setSaveMessage({
         type: 'error',
-        text: err.response?.data?.error || 'Failed to test connection',
+        text: errorMessage,
       });
     } finally {
       setTesting(false);
@@ -220,12 +240,16 @@ export function ShopifySettingsPage() {
               type="password"
               value={formState.accessToken}
               onChange={(e) => setFormState(prev => ({ ...prev, accessToken: e.target.value }))}
-              placeholder="Enter your Shopify Admin API access token"
+              placeholder="shpat_xxxxxxxxxxxxxxxxxxxxx"
               className="input-field w-full"
             />
-            {settings?.maskedCredentials.accessToken && (
+            {settings?.maskedCredentials.accessToken ? (
               <p className="text-xs text-gray-500 mt-1">
                 Current: {settings.maskedCredentials.accessToken}
+              </p>
+            ) : (
+              <p className="text-xs text-gray-500 mt-1">
+                Your Shopify Admin API access token. Starts with shpat_. Found in Shopify Admin → Settings → Apps → your app → API credentials.
               </p>
             )}
           </div>
@@ -233,7 +257,7 @@ export function ShopifySettingsPage() {
           {/* Webhook Secret */}
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Webhook Shared Secret
+              Webhook Shared Secret <span className="text-gray-400">(optional)</span>
             </label>
             <input
               type="password"
@@ -242,9 +266,13 @@ export function ShopifySettingsPage() {
               placeholder="Enter your Shopify webhook shared secret"
               className="input-field w-full"
             />
-            {settings?.maskedCredentials.webhookSecret && (
+            {settings?.maskedCredentials.webhookSecret ? (
               <p className="text-xs text-gray-500 mt-1">
                 Current: {settings.maskedCredentials.webhookSecret}
+              </p>
+            ) : (
+              <p className="text-xs text-gray-500 mt-1">
+                Only needed if you want to receive real-time order webhooks. Can be configured later.
               </p>
             )}
           </div>
@@ -264,17 +292,24 @@ export function ShopifySettingsPage() {
           </div>
 
           {/* Enabled Toggle */}
-          <div className="flex items-center gap-3">
-            <input
-              type="checkbox"
-              id="shopify-enabled"
-              checked={formState.enabled}
-              onChange={(e) => setFormState(prev => ({ ...prev, enabled: e.target.checked }))}
-              className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-            />
-            <label htmlFor="shopify-enabled" className="text-sm font-medium text-gray-700 dark:text-gray-300">
-              Enable Shopify Integration
-            </label>
+          <div className="flex items-start gap-3">
+            <div className="flex items-center h-5">
+              <input
+                type="checkbox"
+                id="shopify-enabled"
+                checked={formState.enabled}
+                onChange={(e) => setFormState(prev => ({ ...prev, enabled: e.target.checked }))}
+                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+              />
+            </div>
+            <div>
+              <label htmlFor="shopify-enabled" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                Enable Shopify Integration
+              </label>
+              <p className="text-xs text-gray-500 mt-0.5">
+                You can save credentials without enabling the integration. Enable when ready to start syncing orders.
+              </p>
+            </div>
           </div>
 
           {/* Action Buttons */}

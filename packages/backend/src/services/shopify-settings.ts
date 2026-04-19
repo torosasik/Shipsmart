@@ -21,8 +21,8 @@ export interface ShopifySettings {
   storeDomain: string;
   /** Shopify Admin API access token */
   accessToken: string;
-  /** Shopify webhook shared secret for HMAC verification */
-  webhookSecret: string;
+  /** Shopify webhook shared secret for HMAC verification (optional) */
+  webhookSecret?: string;
   /** API version (e.g., 2024-01) */
   apiVersion: string;
   /** Whether Shopify integration is active */
@@ -52,10 +52,11 @@ export interface ShopifySettingsInfo {
 }
 
 // ============================================================================
-// Firestore Document Path
+// Firestore Collection / Document
 // ============================================================================
 
-const DOCUMENT_PATH = 'settings/shopify';
+const COLLECTION = 'settings';
+const DOCUMENT_ID = 'shopify';
 
 // ============================================================================
 // Service
@@ -65,9 +66,15 @@ const firestoreService = new FirestoreService();
 
 /**
  * Get Shopify settings from Firestore.
+ * Returns null gracefully if Firestore is unavailable (e.g. expired ADC).
  */
 export async function getShopifySettings(): Promise<ShopifySettings | null> {
-  return firestoreService.getDocument<ShopifySettings>(DOCUMENT_PATH, 'shopify');
+  try {
+    return await firestoreService.getDocument<ShopifySettings>(COLLECTION, DOCUMENT_ID);
+  } catch (error) {
+    console.warn('[ShopifySettings] Could not read from Firestore, returning defaults:', (error as Error).message);
+    return null;
+  }
 }
 
 /**
@@ -89,9 +96,9 @@ export async function saveShopifySettings(settings: Partial<ShopifySettings>): P
   };
 
   if (existing) {
-    await firestoreService.updateDocument(DOCUMENT_PATH, 'shopify', payload);
+    await firestoreService.updateDocument(COLLECTION, DOCUMENT_ID, payload);
   } else {
-    await firestoreService.createDocument(DOCUMENT_PATH, 'shopify', payload);
+    await firestoreService.createDocument(COLLECTION, DOCUMENT_ID, payload);
   }
 }
 
@@ -129,7 +136,7 @@ export async function getMaskedShopifySettings(): Promise<Record<string, string>
   return {
     storeDomain: settings.storeDomain,
     accessToken: maskCredentialValue(settings.accessToken),
-    webhookSecret: maskCredentialValue(settings.webhookSecret),
+    webhookSecret: maskCredentialValue(settings.webhookSecret ?? ''),
     apiVersion: settings.apiVersion,
   };
 }
@@ -159,13 +166,25 @@ export async function testShopifyConnection(): Promise<{ success: boolean; messa
 
     return {
       success: true,
-      message: `Successfully connected to ${shopName || 'Shopify store'}`,
+      message: `Successfully connected to ${shopName || settings.storeDomain}`,
     };
   } catch (error: any) {
     console.error('[ShopifySettings] Connection test failed:', error);
+    const statusCode = error.response?.status;
+    let detailedMessage = error.response?.data?.errors || error.message || 'Unknown error';
+    
+    // Add HTTP status code context for common errors
+    if (statusCode === 401) {
+      detailedMessage = `401 Unauthorized — check your Admin API access token`;
+    } else if (statusCode === 404) {
+      detailedMessage = `404 Not Found — check your store domain`;
+    } else if (statusCode === 429) {
+      detailedMessage = `429 Rate Limited — try again later`;
+    }
+    
     return {
       success: false,
-      message: `Connection failed: ${error.response?.data?.errors || error.message || 'Unknown error'}`,
+      message: `Connection failed: ${detailedMessage}`,
     };
   }
 }
@@ -176,7 +195,7 @@ export async function testShopifyConnection(): Promise<{ success: boolean; messa
 export async function updateLastSyncTimestamp(): Promise<void> {
   const existing = await getShopifySettings();
   if (existing) {
-    await firestoreService.updateDocument(DOCUMENT_PATH, 'shopify', {
+    await firestoreService.updateDocument(COLLECTION, DOCUMENT_ID, {
       lastSyncAt: new Date(),
     });
   }
