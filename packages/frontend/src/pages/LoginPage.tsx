@@ -1,13 +1,10 @@
-import { useState, FormEvent, useEffect } from 'react';
+import { useState, FormEvent } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useAuthStore } from '../stores/useAuthStore';
 import { useToast } from '../hooks/useToast';
 import { Button, Input } from '../components/ui';
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import { auth } from '../firebase';
-
-// Development mode flag
-const isDev = import.meta.env.DEV;
 
 export function LoginPage() {
   const [email, setEmail] = useState('');
@@ -22,21 +19,11 @@ export function LoginPage() {
   
   const from = (location.state as any)?.from?.pathname || '/';
 
-  // AUTH BYPASS: Redirect to dashboard immediately on mount
-  useEffect(() => {
-    navigate('/', { replace: true });
-  }, [navigate]);
+  // Let the user actually submit the form to login!
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setError('');
-
-    // In dev mode, skip authentication and allow access
-    if (isDev) {
-      toast.success('Development mode: Access granted!');
-      navigate(from, { replace: true });
-      return;
-    }
 
     setIsLoading(true);
 
