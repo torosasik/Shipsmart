@@ -45,6 +45,7 @@ export const useAuthStore = create<AuthStore>()((set, get) => ({
           },
           token,
           isAuthenticated: true,
+          isLoading: false,
           initialized: true,
         });
       } else {
@@ -52,6 +53,7 @@ export const useAuthStore = create<AuthStore>()((set, get) => ({
           user: null,
           token: null,
           isAuthenticated: false,
+          isLoading: false,
           initialized: true,
         });
       }
