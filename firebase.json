@@ -42,6 +42,9 @@
           }
         ]
       }
+    ],
+    "predeploy": [
+      "bash predeploy-check.sh"
     ]
   }
 }
