@@ -11,6 +11,7 @@ import { ShopifySettingsPage } from './pages/ShopifySettingsPage';
 import { HealthCheckPage } from './pages/HealthCheckPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { LoginPage } from './pages/LoginPage';
+import { NotFoundPage } from './pages/NotFoundPage';
 
 export function App() {
   return (
@@ -37,6 +38,7 @@ export function App() {
         <Route path="health" element={<HealthCheckPage />} />
         <Route path="settings" element={<SettingsPage />} />
       </Route>
+      <Route path="*" element={<NotFoundPage />} />
     </Routes>
   );
 }

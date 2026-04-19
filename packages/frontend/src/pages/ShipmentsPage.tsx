@@ -107,9 +107,9 @@ export function ShipmentsPage() {
           >
             {showRatePanel ? 'Hide Rates' : 'Get Rates'}
           </button>
-          <Link to="/orders" className="btn-primary">
+          <button onClick={() => alert("Create Shipment — coming soon")} className="btn-primary">
             Create Shipment
-          </Link>
+          </button>
         </div>
       </div>
 
@@ -191,9 +191,9 @@ export function ShipmentsPage() {
               ) : (
                 <div className="text-center py-8">
                   <p className="text-gray-500">No shipments found</p>
-                  <Link to="/orders" className="btn-primary mt-4 inline-block">
+                  <button onClick={() => alert("Create Shipment — coming soon")} className="btn-primary mt-4">
                     Create First Shipment
-                  </Link>
+                  </button>
                 </div>
               )}
             </div>
